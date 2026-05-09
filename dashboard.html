@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ICCD Digital Management</title>
+    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+    <style>
+        :root { --primary: #0f172a; --brand: #004481; --accent: #e67e22; --bg: #f8fafc; --border: #e2e8f0; }
+        body { font-family: 'Inter', sans-serif; margin: 0; background: var(--bg); display: flex; flex-direction: column; height: 100vh; overflow: hidden; color: #1e293b; }
+        
+        /* Navbar Moderna */
+        nav { 
+            background: var(--primary); color: white; padding: 0 25px; height: 65px; 
+            display: flex; align-items: center; justify-content: space-between; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 100;
+        }
+        .nav-left { display: flex; align-items: center; gap: 20px; }
+        .home-btn { font-size: 1.4em; color: white; text-decoration: none; transition: 0.3s; }
+        .home-btn:hover { color: var(--accent); }
+        
+        #main-content { display: flex; flex: 1; overflow: hidden; padding: 15px; gap: 15px; }
+        
+        /* Viewer 3D */
+        #viewer-container { flex: 1.3; display: flex; flex-direction: column; gap: 10px; }
+        #viewer-box { 
+            background: radial-gradient(circle at center, #ffffff, #e2e8f0); 
+            border: 1px solid var(--border); border-radius: 16px; flex: 1; 
+            overflow: hidden; position: relative; box-shadow: 0 10px 25px rgba(0,0,0,0.05); 
+        }
+        model-viewer { width: 100%; height: 100%; }
+
+        /* Hotspot Styling */
+        .hotspot {
+            width: 18px; height: 18px; border-radius: 50%; border: 3px solid white;
+            background: var(--brand); cursor: pointer; box-shadow: 0 0 10px rgba(0,0,0,0.3);
+        }
+        .annotation {
+            display: none; position: absolute; background: white; padding: 12px;
+            border-radius: 10px; width: 180px; font-size: 0.8em; color: #333;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.15); border-left: 4px solid var(--brand);
+            transform: translate(15px, -50%); pointer-events: none;
+        }
+        .hotspot:hover .annotation { display: block; }
+
+        /* Pannello Dati */
+        #info-panel { flex: 1; background: white; border: 1px solid var(--border); border-radius: 16px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+        .panel-header { padding: 20px; background: white; border-bottom: 1px solid var(--border); }
+        
+        /* Tabs */
+        .tab-menu { display: flex; background: #f1f5f9; padding: 5px; gap: 5px; }
+        .tab-btn { 
+            flex: 1; padding: 10px; border: none; background: none; cursor: pointer; 
+            font-size: 0.75em; font-weight: 700; color: #64748b; border-radius: 8px; transition: 0.3s;
+        }
+        .tab-btn:hover { background: #e2e8f0; color: var(--brand); }
+        .tab-btn.active { background: white; color: var(--brand); box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+
+        .tab-content { flex: 1; padding: 20px; display: none; overflow-y: auto; }
+        .tab-content.active { display: block; }
+
+        /* Dati Grid */
+        .data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .data-card { background: #f8fafc; padding: 12px; border-radius: 10px; border: 1px solid #f1f5f9; }
+        .label { font-size: 0.65em; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin-bottom: 4px; display: flex; align-items: center; gap: 5px; }
+        .tag-iccd { color: var(--brand); background: #e0e7ff; padding: 2px 4px; border-radius: 4px; }
+        .val { font-size: 0.9em; font-weight: 500; color: #1e293b; }
+
+        input[type="text"] { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; }
+        
+        .role-badge { padding: 5px 12px; border-radius: 20px; font-size: 0.7em; font-weight: 800; text-transform: uppercase; }
+        .btn-save { background: #10b981; color: white; border: none; padding: 18px; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        .btn-save:hover { background: #059669; }
+        
+        .status-pill { display: inline-block; padding: 4px 8px; border-radius: 6px; font-size: 0.7em; background: #dcfce7; color: #166534; font-weight: bold; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+<nav>
+    <div class="nav-left">
+        <a href="index.html" class="home-btn">🏛️</a>
+        <div id="nav-title" style="font-weight: 800; letter-spacing: 1px; font-size: 0.9em;">ARCHIVIO DIGITALE</div>
+    </div>
+    <div id="user-display" class="role-badge" style="background: rgba(255,255,255,0.1);">CARICAMENTO...</div>
+</nav>
+
+<div id="main-content">
+    <div id="viewer-container">
+        <div id="viewer-box">
+            <div id="upload-hint" style="display:none; position: absolute; text-align: center; color: #64748b; z-index: 5;">
+                <p style="font-size: 3em; margin:0;">📥</p>
+                <p><b>Rilascia il file GLB</b><br>per iniziare la catalogazione</p>
+            </div>
+            <model-viewer id="main-viewer" src="meta_con_scritta.glb" auto-rotate camera-controls shadow-intensity="1" environment-image="neutral">
+                <!-- Hotspot 1 -->
+                <button class="hotspot" slot="hotspot-1" data-position="0.1m 0.4m 0.1m" data-normal="0m 0m 1m">
+                    <div class="annotation"><b>Iscrizione T-80</b><br>Dedica incisa in caratteri lapidari latini.</div>
+                </button>
+                <!-- Hotspot 2 -->
+                <button class="hotspot" slot="hotspot-2" data-position="-0.1m 0.2m 0.05m" data-normal="0m 1m 0m">
+                    <div class="annotation"><b>Analisi Degrado</b><br>Area soggetta a esfoliazione meccanica.</div>
+                </button>
+            </model-viewer>
+        </div>
+        <div style="background: white; padding: 12px; border-radius: 12px; font-size: 0.75em; color: #64748b; border: 1px solid var(--border);">
+            💡 <b>Consiglio:</b> Ruota il modello per visualizzare i punti di interesse (hotspots).
+        </div>
+    </div>
+
+    <div id="info-panel">
+        <div class="panel-header">
+            <div class="status-pill">SCHEDA VALIDATA</div>
+            <h2 id="obj-title" style="margin:0; font-size: 1.3em;">Cippo Monumentale</h2>
+            <p id="arc-tag" style="margin:5px 0 0 0; font-size: 0.75em; color: #94a3b8; font-weight: 600;"></p>
+        </div>
+
+        <div class="tab-menu">
+            <button class="tab-btn active" onclick="openTab(event, 't-ident')">IDENTIFICAZIONE</button>
+            <button class="tab-btn" onclick="openTab(event, 't-hist')">STORIA</button>
+            <button class="tab-btn" onclick="openTab(event, 't-tech')">TECNICA</button>
+            <button class="tab-btn" id="btn-loc" onclick="openTab(event, 't-loc')">LOGISTICA 🔒</button>
+        </div>
+
+        <!-- TAB IDENTIFICAZIONE -->
+        <div id="t-ident" class="tab-content active">
+            <div class="data-grid">
+                <div class="data-card"><div class="label"><span class="tag-iccd">TSK</span>Tipo Scheda</div><div class="val">OA</div></div>
+                <div class="data-card"><div class="label"><span class="tag-iccd">NCT</span>N. Catalogo</div><div class="val">00123456</div></div>
+                <div class="data-card" style="grid-column: span 2;"><div class="label"><span class="tag-iccd">OGT</span>Oggetto</div><div class="val">Cippo / Elemento Architettonico</div></div>
+                <div class="data-card" style="grid-column: span 2;"><div class="label"><span class="tag-iccd">DES</span>Denominazione</div><div class="val">Cippo Monumentale del Deposito Est</div></div>
+            </div>
+        </div>
+
+        <!-- TAB STORIA -->
+        <div id="t-hist" class="tab-content">
+            <div class="data-card" style="margin-bottom:12px;"><div class="label"><span class="tag-iccd">AUT</span>Autore</div><div class="val">Ignoto (Bottega Locale)</div></div>
+            <div class="data-card" style="margin-bottom:12px;"><div class="label"><span class="tag-iccd">DTM</span>Cronologia</div><div class="val">XIX Secolo (1840-1860)</div></div>
+            <div class="data-card"><div class="label"><span class="tag-iccd">ADT</span>Analisi Analitica</div><div class="val" style="line-height:1.4;">Il bene presenta decorazioni fitomorfe sulla base e iscrizioni sul fronte principale...</div></div>
+        </div>
+
+        <!-- TAB TECNICA -->
+        <div id="t-tech" class="tab-content">
+            <div class="data-grid">
+                <div class="data-card"><div class="label"><span class="tag-iccd">MTC</span>Materia</div><div class="val">Pietra Lavica</div></div>
+                <div class="data-card"><div class="label"><span class="tag-iccd">MIS</span>Misure</div><div class="val">85x42x30 cm</div></div>
+                <div class="data-card" style="grid-column: span 2;"><div class="label"><span class="tag-iccd">EST</span>Stato Conservazione</div><div class="val">Discreto (Lieve erosione superficiale)</div></div>
+            </div>
+        </div>
+
+        <!-- TAB LOGISTICA -->
+        <div id="t-loc" class="tab-content">
+            <div id="loc-locked" style="text-align:center; padding: 40px 20px;">
+                <p style="font-size: 2em; margin:0;">🔒</p>
+                <p style="color: #d9534f; font-weight: bold;">ACCESSO RISERVATO</p>
+                <p style="font-size: 0.8em; color: #64748b;">Solo gli Amministratori possono visualizzare i dati di collocazione fisica e stima economica.</p>
+            </div>
+            <div id="loc-data" style="display:none;">
+                <div class="data-card" style="margin-bottom:12px;"><div class="label"><span class="tag-iccd">PVT</span>Ubicazione Reale</div><div class="val">Deposito 2 - Scaffale B-14</div></div>
+                <div class="data-card"><div class="label"><span class="tag-iccd">VAL</span>Stima Valore</div><div class="val">€ 18.500,00</div></div>
+            </div>
+        </div>
+
+        <button id="save-btn" class="btn-save" style="display:none;" onclick="handleSave()">SALVA NUOVA SCHEDA PROVVISORIA</button>
+    </div>
+</div>
+
+<script>
+    function openTab(evt, tabName) {
+        let contents = document.getElementsByClassName("tab-content");
+        for (let c of contents) { c.style.display = "none"; }
+        let buttons = document.getElementsByClassName("tab-btn");
+        for (let b of buttons) { b.classList.remove("active"); }
+        document.getElementById(tabName).style.display = "block";
+        evt.currentTarget.classList.add("active");
+    }
+
+    window.onload = () => {
+        const p = new URLSearchParams(window.location.search);
+        const role = p.get('role');
+        const arc = p.get('arc');
+        
+        document.getElementById('nav-title').innerText = arc || "ARCHIVIO DIGITALE";
+        document.getElementById('arc-tag').innerText = "UNITÀ DI GESTIONE: " + (arc || "STANDARD");
+        
+        const badge = document.getElementById('user-display');
+        
+        if (role === 'archivista') {
+            badge.innerText = "ADMIN: " + role; badge.style.color = "#fbbf24";
+            document.getElementById('loc-locked').style.display = "none";
+            document.getElementById('loc-data').style.display = "block";
+            document.getElementById('btn-loc').innerText = "LOGISTICA 🔓";
+        } else if (role === 'catalogatore') {
+            badge.innerText = "EDITOR: " + role; badge.style.color = "#34d399";
+            enableEditorMode();
+        } else {
+            badge.innerText = "STUDIOSO"; badge.style.color = "#60a5fa";
+        }
+    };
+
+    function enableEditorMode() {
+        document.getElementById('obj-title').innerText = "Immissione Nuovo Bene";
+        document.getElementById('main-viewer').style.display = "none";
+        document.getElementById('upload-hint').style.display = "block";
+        document.getElementById('save-btn').style.display = "block";
+        document.querySelectorAll('.val').forEach(v => {
+            const txt = v.innerText;
+            v.innerHTML = `<input type="text" placeholder="Inserisci ${txt}...">`;
+        });
+    }
+
+    function handleSave() {
+        const btn = document.getElementById('save-btn');
+        btn.innerText = "INVIO IN CORSO...";
+        btn.style.opacity = "0.7";
+        setTimeout(() => {
+            alert("Sistema: Scheda ICCD inviata correttamente al database centrale.");
+            btn.innerText = "CONFERMA INSERIMENTO";
+            btn.style.opacity = "1";
+        }, 1500);
+    }
+</script>
+</body>
+</html>

@@ -2,90 +2,120 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Digitalizzazione Patrimonio Culturale - Demo</title>
-    
-    <!-- Import del componente 3D di Google -->
-    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
-
+    <title>Digital Heritage Portal - Login</title>
     <style>
-        body { font-family: sans-serif; margin: 0; display: flex; height: 100vh; background: #f4f4f4; }
-        #viewer-container { flex: 2; background: #eee; position: relative; }
-        #info-container { flex: 1; padding: 20px; overflow-y: auto; background: white; border-left: 1px solid #ccc; }
+        :root { --primary: #004481; --accent: #e67e22; --bg: #0f172a; }
+        body { 
+            font-family: 'Inter', -apple-system, sans-serif; 
+            background: radial-gradient(circle at top right, #1e293b, #0f172a); 
+            color: white; height: 100vh; margin: 0; 
+            display: flex; justify-content: center; align-items: center;
+        }
+        .login-card { 
+            background: rgba(255, 255, 255, 0.95); color: #1e293b; 
+            padding: 40px; border-radius: 20px; width: 380px; 
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4); position: relative;
+            backdrop-filter: blur(10px);
+        }
+        .help-btn { 
+            position: absolute; top: -15px; right: -15px; 
+            width: 40px; height: 40px; background: var(--accent); 
+            color: white; border: 4px solid white; border-radius: 50%; 
+            cursor: pointer; font-weight: bold; font-size: 1.2em;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2); transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .help-btn:hover { transform: scale(1.1) rotate(15deg); }
+        .archive-select { display: flex; gap: 8px; margin: 25px 0; }
+        .archive-opt { 
+            flex: 1; padding: 12px 5px; border: 2px solid #e2e8f0; 
+            border-radius: 10px; cursor: pointer; font-size: 0.75em; 
+            font-weight: 700; transition: 0.3s; text-align: center; color: #64748b;
+        }
+        .archive-opt.selected { border-color: var(--primary); background: #f1f5f9; color: var(--primary); box-shadow: 0 4px 12px rgba(0,68,129,0.1); }
+        input { 
+            width: 100%; padding: 14px; margin: 10px 0; 
+            border: 1px solid #cbd5e1; border-radius: 10px; box-sizing: border-box; 
+            font-size: 1em; transition: 0.3s;
+        }
+        input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(0,68,129,0.1); }
+        button.login-submit { 
+            width: 100%; padding: 16px; background: var(--primary); 
+            color: white; border: none; border-radius: 10px; 
+            cursor: pointer; font-size: 1em; font-weight: bold; 
+            margin-top: 20px; transition: 0.3s;
+        }
+        button.login-submit:hover { background: #003366; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
         
-        model-viewer { width: 100%; height: 100%; --poster-color: transparent; }
-        
-        .iccd-table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 0.9em; }
-        .iccd-table th, .iccd-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        .iccd-table th { background-color: #004481; color: white; text-transform: uppercase; }
-        
-        .role-badge { padding: 5px 10px; border-radius: 4px; font-weight: bold; font-size: 0.8em; }
-        .admin { background: #d4edda; color: #155724; } /* Archivista */
-        .guest { background: #fff3cd; color: #856404; } /* Studioso */
-        
-        .restricted { display: none; background: #fff0f0; border: 1px dashed red; padding: 10px; margin-top: 10px; }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+        .modal-content { background: white; color: #333; padding: 35px; border-radius: 20px; max-width: 420px; width: 90%; position: relative; }
+        .close-modal { position: absolute; top: 15px; right: 20px; cursor: pointer; font-size: 1.5em; color: #94a3b8; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.85em; }
+        th, td { padding: 12px; border-bottom: 1px solid #f1f5f9; text-align: left; }
     </style>
 </head>
 <body>
 
-    <!-- Area Visualizzazione 3D -->
-    <div id-container id="viewer-container">
-        <!-- SOSTITUISCI 'tuo_modello.glb' con il nome del tuo file su GitHub -->
-        <model-viewer src="meta_con_scritta.glb" 
-                      poster="caricamento.png"
-                      alt="Scansione 3D Opera Culturale" 
-                      auto-rotate camera-controls ar>
-        </model-viewer>
+<div class="login-card">
+    <button class="help-btn" onclick="openHelp()">?</button>
+    <div style="text-align: center; margin-bottom: 20px;">
+        <span style="background: var(--primary); color: white; padding: 8px 15px; border-radius: 8px; font-weight: 900; letter-spacing: 2px;">ICCD 3D</span>
+    </div>
+    <h2 style="margin: 10px 0 5px 0; text-align: center;">Bentornato</h2>
+    <p style="text-align: center; color: #64748b; font-size: 0.9em; margin-bottom: 25px;">Gestione Digitale Beni Culturali</p>
+    
+    <div class="archive-select">
+        <div class="archive-opt selected" onclick="sel(this)">ARCHIVIO A</div>
+        <div class="archive-opt" onclick="sel(this)">ARCHIVIO B</div>
+        <div class="archive-opt" onclick="sel(this)">ARCHIVIO C</div>
     </div>
 
-    <!-- Area Scheda ICCD -->
-    <div id="info-container">
-        <h2>Scheda Catalografica (Demo)</h2>
-        <div id="user-role">
-            Ruolo attuale: <span id="role-label" class="role-badge guest">Studioso</span>
-            <button onclick="switchRole()">Cambia Ruolo</button>
-        </div>
+    <form onsubmit="handleLogin(event)">
+        <input type="text" id="user" placeholder="Username" required>
+        <input type="password" id="pass" placeholder="Password" required>
+        <button type="submit" class="login-submit">ACCEDI AL PORTALE</button>
+    </form>
+</div>
 
-        <table class="iccd-table">
-            <tr><th>Codice Bene (TSK)</th><td>OA - Opera d'Arte</td></tr>
-            <tr><th>Definizione (DES)</th><td>Statua in bronzo</td></tr>
-            <tr><th>Autore (AUT)</th><td>Ignoto</td></tr>
-            <tr><th>Cronologia (DT)</th><td>XIX Secolo</td></tr>
+<div id="helpModal" class="modal-overlay">
+    <div class="modal-content">
+        <span class="close-modal" onclick="closeHelp()">&times;</span>
+        <h3 style="color: var(--primary); margin-top: 0;">Accessi Demo</h3>
+        <table>
+            <tr><th>Ruolo</th><th>User / Pass</th></tr>
+            <tr><td><b>Archivista</b></td><td>archivista / meta2026</td></tr>
+            <tr><td><b>Studioso</b></td><td>studioso / ospite</td></tr>
+            <tr><td><b>Catalogatore</b></td><td>catalogatore / inserimento</td></tr>
         </table>
-
-        <!-- Sezione Riservata agli Archivisti -->
-        <div id="restricted-section" class="restricted">
-            <h4 style="color: red;">Dati Riservati (Archivista/Restauratore)</h4>
-            <p><strong>Stato di Conservazione:</strong> Necessita di pulizia superficiale.</p>
-            <p><strong>Ubicazione Deposito:</strong> Settore B, Scaffale 4.</p>
-            <p><strong>Valore Assicurativo:</strong> € 50.000,00</p>
-        </div>
-
-        <div style="margin-top: 30px;">
-            <h4>Documentazione 2D correlata</h4>
-            <img src="articolo_giornale.jpg" alt="Articolo" style="width: 100%; border: 1px solid #ccc;">
-            <p><small>Ritaglio di stampa - Archivio Storico</small></p>
-        </div>
+        <p style="font-size: 0.8em; color: #64748b; margin-top: 20px; line-height: 1.5;">
+            Scegli un profilo per testare i diversi livelli di permessi sulla scheda ministeriale e sul modello 3D.
+        </p>
     </div>
+</div>
 
-    <script>
-        // Semplice funzione per simulare il cambio permessi nella demo
-        let isAdmin = false;
-        function switchRole() {
-            isAdmin = !isAdmin;
-            const label = document.getElementById('role-label');
-            const section = document.getElementById('restricted-section');
-            
-            if(isAdmin) {
-                label.innerText = "Archivista";
-                label.className = "role-badge admin";
-                section.style.display = "block";
-            } else {
-                label.innerText = "Studioso";
-                label.className = "role-badge guest";
-                section.style.display = "none";
-            }
+<script>
+    let selectedArc = "Archivio A";
+    function sel(el) {
+        document.querySelectorAll('.archive-opt').forEach(opt => opt.classList.remove('selected'));
+        el.classList.add('selected');
+        selectedArc = el.innerText;
+    }
+    function openHelp() { document.getElementById('helpModal').style.display = 'flex'; }
+    function closeHelp() { document.getElementById('helpModal').style.display = 'none'; }
+
+    function handleLogin(e) {
+        e.preventDefault();
+        const user = document.getElementById('user').value.toLowerCase();
+        const pass = document.getElementById('pass').value;
+        if (user === 'archivista' && pass === 'meta2026') {
+            window.location.href = `dashboard.html?role=archivista&arc=${selectedArc}`;
+        } else if (user === 'studioso' && pass === 'ospite') {
+            window.location.href = `dashboard.html?role=studioso&arc=${selectedArc}`;
+        } else if (user === 'catalogatore' && pass === 'inserimento') {
+            window.location.href = `dashboard.html?role=catalogatore&arc=${selectedArc}&mode=new`;
+        } else {
+            alert("Credenziali errate! Controlla la guida (?)");
         }
-    </script>
+    }
+</script>
 </body>
 </html>
