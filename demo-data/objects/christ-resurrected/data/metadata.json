@@ -1,0 +1,29 @@
+{
+  "id": "christ-resurrected",
+  "tsk": "OA",
+  "nct": "00777012",
+  "oggetto": "Statua Religiosa",
+  "denominazione": "Christ Resurrected",
+  "autore": "Ignoto",
+  "cronologia": "XVI Secolo",
+  "materia": "Marmo",
+  "misure": "31x24x6 cm",
+  "statoConservazione": "Critico",
+  "ubicazione": "Deposito Restauro - Banco C",
+  "valore": "EUR 12.300,00",
+  "status": "draft",
+  "geo": {
+    "lat": 41.8902,
+    "lng": 12.4922,
+    "label": "Roma, Foro Romano - rinvenimento 1936"
+  },
+  "assets": {
+    "model": "demo-data/objects/christ-resurrected/model/sculpture_christ_resurrected.glb",
+    "images": [
+      "images/front.jpg"
+    ],
+    "docs": [
+      "docs/sopralluogo.pdf"
+    ]
+  }
+}

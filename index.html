@@ -45,6 +45,19 @@
             margin-top: 20px; transition: 0.3s;
         }
         button.login-submit:hover { background: #003366; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+        .reset-demo-btn {
+            width: 100%;
+            margin-top: 12px;
+            padding: 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            background: #f8fafc;
+            color: #334155;
+            cursor: pointer;
+            font-size: 0.8em;
+            font-weight: 700;
+        }
+        .reset-demo-btn:hover { background: #eef2f7; }
         
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
         .modal-content { background: white; color: #333; padding: 35px; border-radius: 20px; max-width: 420px; width: 90%; position: relative; }
@@ -82,17 +95,30 @@
         <h3 style="color: var(--primary); margin-top: 0;">Accessi Demo</h3>
         <table>
             <tr><th>Ruolo</th><th>User / Pass</th></tr>
-            <tr><td><b>Archivista</b></td><td>archivista / meta2026</td></tr>
-            <tr><td><b>Studioso</b></td><td>studioso / ospite</td></tr>
-            <tr><td><b>Catalogatore</b></td><td>catalogatore / inserimento</td></tr>
+            <tr><td><b>Archivista</b></td><td>archivista / Archivio2026!</td></tr>
+            <tr><td><b>Studioso</b></td><td>studioso / Studio2026!</td></tr>
+            <tr><td><b>Catalogatore</b></td><td>catalogatore / Catalogo2026!</td></tr>
         </table>
         <p style="font-size: 0.8em; color: #64748b; margin-top: 20px; line-height: 1.5;">
             Scegli un profilo per testare i diversi livelli di permessi sulla scheda ministeriale e sul modello 3D.
         </p>
+        <p style="font-size: 0.75em; color: #94a3b8; margin-top: 10px;">
+            Credenziali solo dimostrative, non adatte a uso produzione.
+        </p>
+        <button type="button" class="reset-demo-btn" onclick="resetDemoData()">RESET DATI DEMO</button>
     </div>
 </div>
 
 <script>
+    const SESSION_KEY = "csmDemoSession";
+    const AUDIT_KEY = "csmDemoAuditLog";
+    const CARDS_KEY_PREFIX = "csmDemoCards::";
+    const DEMO_USERS = [
+        { username: "archivista", password: "Archivio2026!", role: "archivista" },
+        { username: "studioso", password: "Studio2026!", role: "studioso" },
+        { username: "catalogatore", password: "Catalogo2026!", role: "catalogatore" }
+    ];
+
     let selectedArc = "Archivio A";
     function sel(el) {
         document.querySelectorAll('.archive-opt').forEach(opt => opt.classList.remove('selected'));
@@ -102,19 +128,41 @@
     function openHelp() { document.getElementById('helpModal').style.display = 'flex'; }
     function closeHelp() { document.getElementById('helpModal').style.display = 'none'; }
 
+    function clearDemoStorage() {
+        localStorage.removeItem(SESSION_KEY);
+        localStorage.removeItem(AUDIT_KEY);
+        Object.keys(localStorage)
+            .filter(key => key.startsWith(CARDS_KEY_PREFIX))
+            .forEach(key => localStorage.removeItem(key));
+    }
+
+    function resetDemoData() {
+        const ok = confirm("Vuoi davvero resettare tutti i dati demo? L'azione non e annullabile.");
+        if (!ok) { return; }
+        clearDemoStorage();
+        closeHelp();
+        alert("Dati demo ripristinati con successo.");
+    }
+
     function handleLogin(e) {
         e.preventDefault();
-        const user = document.getElementById('user').value.toLowerCase();
+        const user = document.getElementById('user').value.trim().toLowerCase();
         const pass = document.getElementById('pass').value;
-        if (user === 'archivista' && pass === 'meta2026') {
-            window.location.href = `dashboard.html?role=archivista&arc=${selectedArc}`;
-        } else if (user === 'studioso' && pass === 'ospite') {
-            window.location.href = `dashboard.html?role=studioso&arc=${selectedArc}`;
-        } else if (user === 'catalogatore' && pass === 'inserimento') {
-            window.location.href = `dashboard.html?role=catalogatore&arc=${selectedArc}&mode=new`;
-        } else {
+
+        const matchedUser = DEMO_USERS.find(u => u.username === user && u.password === pass);
+        if (!matchedUser) {
             alert("Credenziali errate! Controlla la guida (?)");
+            return;
         }
+
+        localStorage.setItem(SESSION_KEY, JSON.stringify({
+            username: matchedUser.username,
+            role: matchedUser.role,
+            archive: selectedArc,
+            loginAt: new Date().toISOString()
+        }));
+
+        window.location.href = "dashboard.html";
     }
 </script>
 </body>

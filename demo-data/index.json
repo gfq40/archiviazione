@@ -1,0 +1,27 @@
+{
+  "version": "1.0.0",
+  "generatedAt": "2026-05-13",
+  "objects": [
+    {
+      "id": "macina-di-ercolano",
+      "title": "Macina di Ercolano",
+      "nct": "00123456",
+      "status": "validated",
+      "folder": "demo-data/objects/macina-di-ercolano"
+    },
+    {
+      "id": "busto-di-roza-loewenfeld",
+      "title": "Busto di Roza Loewenfeld",
+      "nct": "00445891",
+      "status": "review",
+      "folder": "demo-data/objects/busto-di-roza-loewenfeld"
+    },
+    {
+      "id": "christ-resurrected",
+      "title": "Christ Resurrected",
+      "nct": "00777012",
+      "status": "draft",
+      "folder": "demo-data/objects/christ-resurrected"
+    }
+  ]
+}

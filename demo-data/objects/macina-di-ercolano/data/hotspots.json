@@ -1,0 +1,18 @@
+[
+  {
+    "id": "iscrizione-frontale",
+    "category": "iscrizione",
+    "position": "0.1m 0.4m 0.1m",
+    "normal": "0m 0m 1m",
+    "title": "Iscrizione frontale T-80",
+    "severity": "Media"
+  },
+  {
+    "id": "erosione-lato-nord",
+    "category": "degrado",
+    "position": "-0.1m 0.2m 0.05m",
+    "normal": "0m 1m 0m",
+    "title": "Erosione lato nord",
+    "severity": "Alta"
+  }
+]

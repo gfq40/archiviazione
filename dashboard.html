@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ICCD Digital Management</title>
     <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
     <style>
         :root { --primary: #0f172a; --brand: #004481; --accent: #e67e22; --bg: #f8fafc; --border: #e2e8f0; }
         body { font-family: 'Inter', sans-serif; margin: 0; background: var(--bg); display: flex; flex-direction: column; height: 100vh; overflow: hidden; color: #1e293b; }
@@ -16,36 +18,458 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 100;
         }
         .nav-left { display: flex; align-items: center; gap: 20px; }
+        .nav-right { display: flex; align-items: center; gap: 12px; }
         .home-btn { font-size: 1.4em; color: white; text-decoration: none; transition: 0.3s; }
         .home-btn:hover { color: var(--accent); }
+        .logout-btn {
+            border: 1px solid rgba(255,255,255,0.25);
+            background: transparent;
+            color: white;
+            border-radius: 999px;
+            padding: 7px 14px;
+            cursor: pointer;
+            font-size: 0.75em;
+            font-weight: 700;
+            letter-spacing: 0.4px;
+        }
+        .logout-btn:hover { background: rgba(255,255,255,0.12); }
+        .reset-btn {
+            border: 1px solid rgba(255,255,255,0.25);
+            background: rgba(255,255,255,0.08);
+            color: #fee2e2;
+            border-radius: 999px;
+            padding: 7px 14px;
+            cursor: pointer;
+            font-size: 0.75em;
+            font-weight: 700;
+            letter-spacing: 0.4px;
+        }
+        .reset-btn:hover { background: rgba(239,68,68,0.2); }
         
-        #main-content { display: flex; flex: 1; overflow: hidden; padding: 15px; gap: 15px; }
+        #main-content { display: flex; flex: 1; overflow: auto; padding: 15px; gap: 15px; }
         
         /* Viewer 3D */
-        #viewer-container { flex: 1.3; display: flex; flex-direction: column; gap: 10px; }
+        #viewer-container {
+            flex: 1.45;
+            min-width: 0;
+            display: grid;
+            grid-template-columns: 1.55fr 0.95fr;
+            grid-template-rows: auto minmax(300px, 40vh) minmax(220px, 1fr);
+            grid-template-areas:
+                "cards cards"
+                "viewer geo"
+                "context context";
+            gap: 10px;
+            align-items: stretch;
+        }
+        .card-browser {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 12px;
+            box-shadow: 0 8px 18px rgba(0,0,0,0.04);
+            grid-area: cards;
+        }
+        .card-browser h3 {
+            margin: 0 0 8px 0;
+            font-size: 0.8em;
+            letter-spacing: 0.5px;
+            color: #475569;
+        }
+        .card-search {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            box-sizing: border-box;
+            margin-bottom: 8px;
+            font-size: 0.82em;
+        }
+        .card-list {
+            max-height: 100px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .card-pagination {
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .card-page-btn {
+            border: 1px solid #cbd5e1;
+            background: #f8fafc;
+            color: #334155;
+            border-radius: 8px;
+            padding: 5px 9px;
+            font-size: 0.72em;
+            font-weight: 800;
+            cursor: pointer;
+        }
+        .card-page-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        .card-page-info {
+            font-size: 0.7em;
+            color: #64748b;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        .card-item {
+            border: 1px solid #e2e8f0;
+            background: #f8fafc;
+            border-radius: 10px;
+            padding: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .card-item.active {
+            border-color: var(--brand);
+            background: #eaf2ff;
+        }
+        .card-item-title { font-size: 0.78em; font-weight: 700; color: #1e293b; }
+        .card-item-status {
+            font-size: 0.64em;
+            font-weight: 800;
+            border-radius: 999px;
+            padding: 3px 8px;
+            background: #e2e8f0;
+            color: #334155;
+            text-transform: uppercase;
+        }
         #viewer-box { 
             background: radial-gradient(circle at center, #ffffff, #e2e8f0); 
-            border: 1px solid var(--border); border-radius: 16px; flex: 1; 
+            border: 1px solid var(--border); border-radius: 16px; flex: 1 1 48vh;
+            min-height: 300px;
             overflow: hidden; position: relative; box-shadow: 0 10px 25px rgba(0,0,0,0.05); 
+            grid-area: viewer;
         }
         model-viewer { width: 100%; height: 100%; }
+        .viewer-toolbar {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            z-index: 20;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            max-width: 62%;
+        }
+        .viewer-btn {
+            border: 1px solid #cbd5e1;
+            background: rgba(255,255,255,0.92);
+            color: #1e293b;
+            border-radius: 999px;
+            padding: 7px 10px;
+            font-size: 0.7em;
+            font-weight: 800;
+            cursor: pointer;
+            letter-spacing: 0.25px;
+        }
+        .viewer-btn.expand {
+            background: rgba(15,23,42,0.9);
+            color: #e2e8f0;
+            border-color: rgba(255,255,255,0.2);
+        }
+        .viewer-btn.off {
+            opacity: 0.4;
+            text-decoration: line-through;
+        }
+        #viewer-box.fullscreen-section,
+        .geo-panel.fullscreen-section,
+        #artifact-context.fullscreen-section {
+            position: fixed;
+            inset: 14px;
+            z-index: 2200;
+            border-radius: 14px;
+            box-shadow: 0 24px 48px rgba(15,23,42,0.28);
+            background: white;
+        }
+        #artifact-context.fullscreen-section {
+            overflow: auto;
+            align-content: start;
+        }
+        .geo-panel.fullscreen-section #artifact-map,
+        #viewer-box.fullscreen-section model-viewer {
+            min-height: calc(100vh - 120px);
+        }
+        .viewer-info {
+            position: absolute;
+            right: 12px;
+            top: 12px;
+            width: 280px;
+            max-width: calc(100% - 24px);
+            z-index: 20;
+            background: rgba(255,255,255,0.96);
+            border: 1px solid #dbe3ee;
+            border-radius: 12px;
+            padding: 12px;
+            box-shadow: 0 10px 20px rgba(15,23,42,0.12);
+            display: none;
+        }
+        .viewer-info h4 {
+            margin: 0 0 5px 0;
+            font-size: 0.9em;
+            color: #0f172a;
+        }
+        .viewer-info p {
+            margin: 0;
+            font-size: 0.77em;
+            line-height: 1.45;
+            color: #334155;
+        }
+        .viewer-meta {
+            margin-top: 8px;
+            display: grid;
+            gap: 5px;
+            font-size: 0.72em;
+            color: #475569;
+        }
+        .viewer-meta b { color: #0f172a; }
+        .artifact-context {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px;
+            display: grid;
+            grid-template-columns: 1fr;
+            grid-template-areas:
+                "location"
+                "galleryhead"
+                "filters"
+                "gallery"
+                "preview";
+            gap: 10px;
+            grid-area: context;
+        }
+        .artifact-location-card { grid-area: location; }
+        .artifact-gallery-head { grid-area: galleryhead; }
+        .gallery-filters { grid-area: filters; }
+        #artifact-gallery { grid-area: gallery; min-height: 88px; }
+        #artifact-preview { grid-area: preview; }
+        .artifact-map-section { min-height: 290px; }
+        .geo-panel {
+            grid-area: geo;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            overflow: hidden;
+            background: white;
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            min-height: 300px;
+            box-shadow: 0 8px 18px rgba(0,0,0,0.04);
+        }
+        .artifact-location-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 10px;
+            background: #f8fafc;
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            align-items: center;
+        }
+        .artifact-location-title {
+            font-size: 0.72em;
+            font-weight: 800;
+            text-transform: uppercase;
+            color: #64748b;
+            margin-bottom: 2px;
+        }
+        .artifact-location-value {
+            font-size: 0.8em;
+            color: #0f172a;
+            font-weight: 700;
+        }
+        .doc-count {
+            background: #e2e8f0;
+            border-radius: 999px;
+            padding: 4px 8px;
+            font-size: 0.68em;
+            font-weight: 800;
+            color: #334155;
+            white-space: nowrap;
+        }
+        .artifact-gallery-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+        }
+        .artifact-gallery-title {
+            font-size: 0.75em;
+            font-weight: 800;
+            color: #334155;
+            letter-spacing: 0.3px;
+        }
+        .artifact-gallery {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding-bottom: 3px;
+        }
+        .doc-thumb {
+            min-width: 96px;
+            border: 1px solid #dbe3ee;
+            border-radius: 10px;
+            background: white;
+            padding: 6px;
+            cursor: pointer;
+        }
+        .doc-thumb.active { border-color: var(--brand); box-shadow: 0 0 0 2px rgba(0,68,129,0.14); }
+        .doc-thumb img {
+            width: 100%;
+            height: 62px;
+            object-fit: cover;
+            border-radius: 8px;
+            display: block;
+            background: #e2e8f0;
+        }
+        .doc-thumb-name {
+            font-size: 0.65em;
+            margin-top: 5px;
+            font-weight: 700;
+            color: #334155;
+            line-height: 1.25;
+        }
+        .doc-thumb-type {
+            font-size: 0.62em;
+            font-weight: 800;
+            color: #64748b;
+            text-transform: uppercase;
+        }
+        .artifact-preview {
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 9px;
+            background: #f8fafc;
+            display: grid;
+            grid-template-columns: 95px 1fr;
+            gap: 10px;
+            align-items: center;
+        }
+        .artifact-preview img {
+            width: 95px;
+            height: 70px;
+            object-fit: cover;
+            border-radius: 8px;
+            background: #dbe3ee;
+        }
+        .artifact-preview-title { font-size: 0.78em; font-weight: 800; color: #0f172a; }
+        .artifact-preview-meta { font-size: 0.68em; color: #475569; margin-top: 3px; }
+        .artifact-preview-actions { margin-top: 6px; display: flex; gap: 6px; }
+        .doc-action-btn {
+            font-size: 0.65em; font-weight: 800; padding: 4px 8px; border: 1px solid #cbd5e1;
+            border-radius: 6px; background: white; cursor: pointer; color: #334155;
+            transition: background 0.15s;
+        }
+        .doc-action-btn:hover { background: #f1f5f9; color: var(--brand); }
+
+        /* Gallery filters */
+        .gallery-filters {
+            display: flex; gap: 5px; flex-wrap: wrap;
+        }
+        .gf-btn {
+            font-size: 0.63em; font-weight: 800; text-transform: uppercase; letter-spacing: 0.3px;
+            padding: 3px 9px; border-radius: 999px; border: 1px solid #dbe3ee;
+            background: white; cursor: pointer; color: #64748b; transition: 0.15s;
+        }
+        .gf-btn:hover { background: #e2e8f0; }
+        .gf-btn.active { background: var(--brand); color: white; border-color: var(--brand); }
+
+        /* Geographic map */
+        .artifact-map-section {
+            border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden;
+        }
+        .artifact-map-header {
+            background: #f8fafc; padding: 7px 10px;
+            display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .artifact-map-head-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .artifact-map-title {
+            font-size: 0.72em; font-weight: 800; text-transform: uppercase; color: #334155; letter-spacing: 0.3px;
+        }
+        .artifact-map-label {
+            font-size: 0.68em; color: #64748b; font-style: italic;
+        }
+        #artifact-map { height: 100%; width: 100%; min-height: 220px; }
+        .map-coords-row {
+            background: #f8fafc; padding: 5px 10px;
+            display: flex; align-items: center; justify-content: space-between;
+            border-top: 1px solid #e2e8f0;
+        }
+        .map-coords-text { font-size: 0.63em; color: #94a3b8; font-family: monospace; }
+        .map-edit-btn {
+            font-size: 0.63em; font-weight: 800; padding: 3px 9px; border-radius: 6px;
+            border: 1px solid #cbd5e1; background: white; cursor: pointer; color: #334155;
+        }
+        .map-edit-btn:hover { background: #e2e8f0; }
+        .mini-expand-btn {
+            border: 1px solid #cbd5e1;
+            border-radius: 999px;
+            background: white;
+            color: #334155;
+            cursor: pointer;
+            font-size: 0.62em;
+            font-weight: 800;
+            padding: 4px 8px;
+            letter-spacing: 0.25px;
+        }
 
         /* Hotspot Styling */
         .hotspot {
-            width: 18px; height: 18px; border-radius: 50%; border: 3px solid white;
-            background: var(--brand); cursor: pointer; box-shadow: 0 0 10px rgba(0,0,0,0.3);
+            width: 20px; height: 20px; border-radius: 50%; border: 3px solid white;
+            background: var(--brand); cursor: pointer; box-shadow: 0 0 12px rgba(0,0,0,0.28);
+            transition: transform 0.2s ease;
         }
-        .annotation {
-            display: none; position: absolute; background: white; padding: 12px;
-            border-radius: 10px; width: 180px; font-size: 0.8em; color: #333;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.15); border-left: 4px solid var(--brand);
-            transform: translate(15px, -50%); pointer-events: none;
-        }
-        .hotspot:hover .annotation { display: block; }
+        .hotspot:hover { transform: scale(1.12); }
+        .hotspot[data-category="degrado"] { background: #dc2626; }
+        .hotspot[data-category="analisi"] { background: #0ea5e9; }
+        .hotspot[data-category="intervento"] { background: #f59e0b; }
+        .hotspot[data-category="iscrizione"] { background: #7c3aed; }
 
         /* Pannello Dati */
-        #info-panel { flex: 1; background: white; border: 1px solid var(--border); border-radius: 16px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+        #info-panel { flex: 1; background: white; border: 1px solid var(--border); border-radius: 16px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.05); min-width: 0; }
+        #info-panel.fullscreen {
+            position: fixed;
+            inset: 14px;
+            z-index: 240;
+            border-radius: 14px;
+            box-shadow: 0 24px 48px rgba(15, 23, 42, 0.28);
+        }
+        body.panel-fullscreen #viewer-container { opacity: 0.2; pointer-events: none; }
         .panel-header { padding: 20px; background: white; border-bottom: 1px solid var(--border); }
+        .panel-title-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 4px;
+        }
+        .panel-expand-btn {
+            border: 1px solid #cbd5e1;
+            border-radius: 999px;
+            background: #f8fafc;
+            color: #334155;
+            font-size: 0.68em;
+            font-weight: 800;
+            letter-spacing: 0.25px;
+            padding: 6px 10px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .panel-expand-btn:hover { background: #e2e8f0; }
         
         /* Tabs */
         .tab-menu { display: flex; background: #f1f5f9; padding: 5px; gap: 5px; }
@@ -73,6 +497,140 @@
         .btn-save:hover { background: #059669; }
         
         .status-pill { display: inline-block; padding: 4px 8px; border-radius: 6px; font-size: 0.7em; background: #dcfce7; color: #166534; font-weight: bold; margin-bottom: 10px; }
+        .arch-tools { display: none; gap: 8px; align-items: center; margin-top: 10px; }
+        .arch-tools button, .arch-tools select {
+            border: 1px solid #cbd5e1;
+            background: #f8fafc;
+            color: #1e293b;
+            border-radius: 8px;
+            padding: 8px 10px;
+            font-size: 0.75em;
+            font-weight: 700;
+        }
+        .arch-tools button { cursor: pointer; }
+        .param-builder {
+            display: none;
+            margin-top: 12px;
+            padding: 10px;
+            border: 1px dashed #cbd5e1;
+            border-radius: 10px;
+            background: #f8fafc;
+        }
+        .param-builder-grid {
+            display: grid;
+            grid-template-columns: 1.2fr 1fr 0.6fr 1fr auto;
+            gap: 8px;
+            align-items: center;
+        }
+        .param-builder-grid input,
+        .param-builder-grid select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-size: 0.78em;
+        }
+        .req-flag {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.75em;
+            color: #475569;
+        }
+        .audit-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.78em;
+        }
+        .audit-table th, .audit-table td {
+            padding: 8px;
+            border-bottom: 1px solid #e2e8f0;
+            text-align: left;
+            vertical-align: top;
+        }
+        .audit-head {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        .lightbox {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.84);
+            z-index: 5000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .lightbox.open { display: flex; }
+        .lightbox-content {
+            width: min(1120px, 96vw);
+            max-height: 92vh;
+            background: #0f172a;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 14px;
+            overflow: hidden;
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+        }
+        .lightbox-head,
+        .lightbox-foot {
+            color: #e2e8f0;
+            padding: 10px 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            font-size: 0.8em;
+        }
+        .lightbox-view {
+            display: grid;
+            grid-template-columns: 48px 1fr 48px;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 10px;
+            min-height: 420px;
+        }
+        .lightbox-view img {
+            width: 100%;
+            height: 100%;
+            max-height: 72vh;
+            object-fit: contain;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.04);
+        }
+        .lightbox-nav,
+        .lightbox-close {
+            border: 1px solid rgba(255,255,255,0.25);
+            background: rgba(255,255,255,0.08);
+            color: white;
+            border-radius: 999px;
+            cursor: pointer;
+            font-weight: 800;
+            font-size: 0.86em;
+            padding: 7px 11px;
+        }
+        .lightbox-nav:disabled { opacity: 0.35; cursor: not-allowed; }
+        @media (max-width: 1200px) {
+            .param-builder-grid { grid-template-columns: 1fr 1fr; }
+            #main-content { flex-direction: column; overflow-y: auto; }
+            #viewer-container, #info-panel { min-height: 420px; }
+            #viewer-container {
+                grid-template-rows: auto minmax(260px, 42vh) minmax(240px, 1fr) auto;
+                grid-template-columns: 1fr;
+                grid-template-areas:
+                    "cards"
+                    "viewer"
+                    "geo"
+                    "context";
+            }
+            #viewer-box { min-height: 260px; }
+            .geo-panel { min-height: 240px; }
+            #artifact-map { min-height: 190px; }
+        }
     </style>
 </head>
 <body>
@@ -82,37 +640,115 @@
         <a href="index.html" class="home-btn">🏛️</a>
         <div id="nav-title" style="font-weight: 800; letter-spacing: 1px; font-size: 0.9em;">ARCHIVIO DIGITALE</div>
     </div>
-    <div id="user-display" class="role-badge" style="background: rgba(255,255,255,0.1);">CARICAMENTO...</div>
+    <div class="nav-right">
+        <div id="user-display" class="role-badge" style="background: rgba(255,255,255,0.1);">CARICAMENTO...</div>
+        <button class="reset-btn" onclick="handleResetDemoData()">RESET DEMO</button>
+        <button class="logout-btn" onclick="handleLogout()">LOGOUT</button>
+    </div>
 </nav>
 
 <div id="main-content">
     <div id="viewer-container">
+        <div class="card-browser">
+            <h3>CARDS ARCHIVIO</h3>
+            <input id="card-search" class="card-search" type="text" placeholder="Cerca card per titolo o catalogo..." oninput="renderCardList(this.value)">
+            <div id="card-list" class="card-list"></div>
+            <div class="card-pagination">
+                <button id="card-prev" class="card-page-btn" type="button" onclick="changeCardPage(-1)">◀ PREV</button>
+                <span id="card-page-info" class="card-page-info">0 risultati</span>
+                <button id="card-next" class="card-page-btn" type="button" onclick="changeCardPage(1)">NEXT ▶</button>
+            </div>
+        </div>
         <div id="viewer-box">
+            <div id="viewer-toolbar" class="viewer-toolbar">
+                <button id="btn-expand-3d" class="viewer-btn expand" onclick="toggle3DFullscreen()">ESPANDI 3D</button>
+                <button class="viewer-btn" data-filter="degrado" onclick="toggleHotspotCategory('degrado', this)">DEGRADO</button>
+                <button class="viewer-btn" data-filter="analisi" onclick="toggleHotspotCategory('analisi', this)">ANALISI</button>
+                <button class="viewer-btn" data-filter="intervento" onclick="toggleHotspotCategory('intervento', this)">INTERVENTI</button>
+                <button class="viewer-btn" data-filter="iscrizione" onclick="toggleHotspotCategory('iscrizione', this)">ISCRIZIONI</button>
+                <button class="viewer-btn" onclick="resetViewer()">RESET VISTA</button>
+            </div>
+            <div id="viewer-info" class="viewer-info">
+                <h4 id="viewer-info-title">Punto informativo</h4>
+                <p id="viewer-info-text">Seleziona un punto sul modello per visualizzare dettagli di conservazione.</p>
+                <div class="viewer-meta">
+                    <div><b>Categoria:</b> <span id="viewer-info-cat">-</span></div>
+                    <div><b>Severita:</b> <span id="viewer-info-sev">-</span></div>
+                    <div><b>Timeline:</b> <span id="viewer-info-time">-</span></div>
+                    <div><b>Allegati:</b> <span id="viewer-info-att">-</span></div>
+                    <div><b>Azione consigliata:</b> <span id="viewer-info-act">-</span></div>
+                </div>
+                <button id="viewer-edit-btn" class="viewer-btn" style="margin-top: 10px; display:none;" onclick="editCurrent3DPoint()">MODIFICA PUNTO</button>
+            </div>
             <div id="upload-hint" style="display:none; position: absolute; text-align: center; color: #64748b; z-index: 5;">
                 <p style="font-size: 3em; margin:0;">📥</p>
                 <p><b>Rilascia il file GLB</b><br>per iniziare la catalogazione</p>
             </div>
-            <model-viewer id="main-viewer" src="meta_con_scritta.glb" auto-rotate camera-controls shadow-intensity="1" environment-image="neutral">
-                <!-- Hotspot 1 -->
-                <button class="hotspot" slot="hotspot-1" data-position="0.1m 0.4m 0.1m" data-normal="0m 0m 1m">
-                    <div class="annotation"><b>Iscrizione T-80</b><br>Dedica incisa in caratteri lapidari latini.</div>
-                </button>
-                <!-- Hotspot 2 -->
-                <button class="hotspot" slot="hotspot-2" data-position="-0.1m 0.2m 0.05m" data-normal="0m 1m 0m">
-                    <div class="annotation"><b>Analisi Degrado</b><br>Area soggetta a esfoliazione meccanica.</div>
-                </button>
+            <model-viewer id="main-viewer" src="meta_con_scritta.glb" camera-controls shadow-intensity="1" environment-image="neutral" camera-orbit="45deg 75deg 2.2m" data-default-orbit="45deg 75deg 2.2m">
+                <button class="hotspot" slot="hotspot-1" data-point-id="iscrizione-frontale" data-category="iscrizione" data-position="0.1m 0.4m 0.1m" data-normal="0m 0m 1m" onclick="open3DPoint('iscrizione-frontale')"></button>
+                <button class="hotspot" slot="hotspot-2" data-point-id="erosione-lato-nord" data-category="degrado" data-position="-0.1m 0.2m 0.05m" data-normal="0m 1m 0m" onclick="open3DPoint('erosione-lato-nord')"></button>
+                <button class="hotspot" slot="hotspot-3" data-point-id="residui-pigmento" data-category="analisi" data-position="0.0m 0.12m -0.07m" data-normal="0m 1m 0m" onclick="open3DPoint('residui-pigmento')"></button>
+                <button class="hotspot" slot="hotspot-4" data-point-id="microstuccatura-consigliata" data-category="intervento" data-position="0.14m 0.26m -0.02m" data-normal="0m 1m 0m" onclick="open3DPoint('microstuccatura-consigliata')"></button>
             </model-viewer>
         </div>
-        <div style="background: white; padding: 12px; border-radius: 12px; font-size: 0.75em; color: #64748b; border: 1px solid var(--border);">
-            💡 <b>Consiglio:</b> Ruota il modello per visualizzare i punti di interesse (hotspots).
+        <div class="geo-panel">
+            <div class="artifact-map-header">
+                <span class="artifact-map-title">Localizzazione Geografica</span>
+                <div class="artifact-map-head-right">
+                    <span id="artifact-map-label" class="artifact-map-label">-</span>
+                    <button id="btn-expand-map" class="mini-expand-btn" type="button" onclick="toggleMapFullscreen()">ESPANDI MAPPA</button>
+                </div>
+            </div>
+            <div id="artifact-map"></div>
+            <div class="map-coords-row">
+                <span id="map-coords-text" class="map-coords-text">lat: — lng: —</span>
+                <button id="btn-edit-geo" class="map-edit-btn" style="display:none;" onclick="editGeoLocation()">✎ Modifica</button>
+            </div>
+        </div>
+        <div id="artifact-context" class="artifact-context">
+            <div class="artifact-location-card">
+                <div>
+                    <div class="artifact-location-title">Collocazione Artifact</div>
+                    <div id="artifact-location-value" class="artifact-location-value">-</div>
+                </div>
+                <div id="artifact-doc-count" class="doc-count">0 documenti</div>
+            </div>
+            <div class="artifact-gallery-head">
+                <div class="artifact-gallery-title">GALLERIA DOCUMENTALE</div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <button id="btn-expand-gallery" class="mini-expand-btn" type="button" onclick="toggleGalleryFullscreen()">ESPANDI GALLERIA</button>
+                    <button id="btn-add-doc" class="viewer-btn" style="display:none;" onclick="addDocumentToCard()">+ AGGIUNGI DOC</button>
+                </div>
+            </div>
+            <div id="gallery-filters" class="gallery-filters">
+                <button class="gf-btn active" data-filter="tutti" onclick="setGalleryFilter('tutti',this)">TUTTI</button>
+                <button class="gf-btn" data-filter="foto" onclick="setGalleryFilter('foto',this)">FOTO</button>
+                <button class="gf-btn" data-filter="tecnica" onclick="setGalleryFilter('tecnica',this)">TECNICA</button>
+                <button class="gf-btn" data-filter="report" onclick="setGalleryFilter('report',this)">REPORT</button>
+                <button class="gf-btn" data-filter="analisi" onclick="setGalleryFilter('analisi',this)">ANALISI</button>
+            </div>
+            <div id="artifact-gallery" class="artifact-gallery"></div>
+            <div id="artifact-preview" class="artifact-preview" style="display:none;"></div>
         </div>
     </div>
 
     <div id="info-panel">
         <div class="panel-header">
-            <div class="status-pill">SCHEDA VALIDATA</div>
-            <h2 id="obj-title" style="margin:0; font-size: 1.3em;">Cippo Monumentale</h2>
+            <div class="status-pill" id="status-pill">BOZZA</div>
+            <div class="panel-title-row">
+                <h2 id="obj-title" style="margin:0; font-size: 1.3em;">Cippo Monumentale</h2>
+                <button id="btn-panel-fullscreen" class="panel-expand-btn" type="button" onclick="toggleInfoPanelFullscreen()">ESPANDI SCHEDA</button>
+            </div>
             <p id="arc-tag" style="margin:5px 0 0 0; font-size: 0.75em; color: #94a3b8; font-weight: 600;"></p>
+            <div id="archivista-tools" class="arch-tools">
+                <button type="button" onclick="addParameterPrompt()">+ NUOVO PARAMETRO</button>
+                <select id="status-select" onchange="changeStatus(this.value)">
+                    <option value="draft">Bozza</option>
+                    <option value="review">In revisione</option>
+                    <option value="validated">Validata</option>
+                    <option value="published">Pubblicata</option>
+                </select>
+            </div>
         </div>
 
         <div class="tab-menu">
@@ -120,31 +756,46 @@
             <button class="tab-btn" onclick="openTab(event, 't-hist')">STORIA</button>
             <button class="tab-btn" onclick="openTab(event, 't-tech')">TECNICA</button>
             <button class="tab-btn" id="btn-loc" onclick="openTab(event, 't-loc')">LOGISTICA 🔒</button>
+            <button class="tab-btn" onclick="openTab(event, 't-audit')">REGISTRO</button>
         </div>
 
         <!-- TAB IDENTIFICAZIONE -->
         <div id="t-ident" class="tab-content active">
             <div class="data-grid">
-                <div class="data-card"><div class="label"><span class="tag-iccd">TSK</span>Tipo Scheda</div><div class="val">OA</div></div>
-                <div class="data-card"><div class="label"><span class="tag-iccd">NCT</span>N. Catalogo</div><div class="val">00123456</div></div>
-                <div class="data-card" style="grid-column: span 2;"><div class="label"><span class="tag-iccd">OGT</span>Oggetto</div><div class="val">Cippo / Elemento Architettonico</div></div>
-                <div class="data-card" style="grid-column: span 2;"><div class="label"><span class="tag-iccd">DES</span>Denominazione</div><div class="val">Cippo Monumentale del Deposito Est</div></div>
+                <div class="data-card"><div class="label"><span class="tag-iccd">TSK</span>Tipo Scheda</div><div class="val" data-field="tsk">OA</div></div>
+                <div class="data-card"><div class="label"><span class="tag-iccd">NCT</span>N. Catalogo</div><div class="val" data-field="nct">00123456</div></div>
+                <div class="data-card" style="grid-column: span 2;"><div class="label"><span class="tag-iccd">OGT</span>Oggetto</div><div class="val" data-field="oggetto">Cippo / Elemento Architettonico</div></div>
+                <div class="data-card" style="grid-column: span 2;"><div class="label"><span class="tag-iccd">DES</span>Denominazione</div><div class="val" data-field="denominazione">Cippo Monumentale del Deposito Est</div></div>
             </div>
+            <div id="param-builder" class="param-builder">
+                <div class="param-builder-grid">
+                    <input id="param-name" type="text" placeholder="Nome parametro">
+                    <select id="param-type">
+                        <option value="text">Testo</option>
+                        <option value="number">Numero</option>
+                        <option value="date">Data</option>
+                    </select>
+                    <label class="req-flag"><input id="param-required" type="checkbox">Req</label>
+                    <input id="param-value" type="text" placeholder="Valore iniziale">
+                    <button type="button" onclick="addParameterFromForm()">Aggiungi</button>
+                </div>
+            </div>
+            <div id="custom-params" class="data-grid" style="margin-top: 12px;"></div>
         </div>
 
         <!-- TAB STORIA -->
         <div id="t-hist" class="tab-content">
-            <div class="data-card" style="margin-bottom:12px;"><div class="label"><span class="tag-iccd">AUT</span>Autore</div><div class="val">Ignoto (Bottega Locale)</div></div>
-            <div class="data-card" style="margin-bottom:12px;"><div class="label"><span class="tag-iccd">DTM</span>Cronologia</div><div class="val">XIX Secolo (1840-1860)</div></div>
-            <div class="data-card"><div class="label"><span class="tag-iccd">ADT</span>Analisi Analitica</div><div class="val" style="line-height:1.4;">Il bene presenta decorazioni fitomorfe sulla base e iscrizioni sul fronte principale...</div></div>
+            <div class="data-card" style="margin-bottom:12px;"><div class="label"><span class="tag-iccd">AUT</span>Autore</div><div class="val" data-field="autore">Ignoto (Bottega Locale)</div></div>
+            <div class="data-card" style="margin-bottom:12px;"><div class="label"><span class="tag-iccd">DTM</span>Cronologia</div><div class="val" data-field="cronologia">XIX Secolo (1840-1860)</div></div>
+            <div class="data-card"><div class="label"><span class="tag-iccd">ADT</span>Analisi Analitica</div><div class="val" data-field="analisi" style="line-height:1.4;">Il bene presenta decorazioni fitomorfe sulla base e iscrizioni sul fronte principale...</div></div>
         </div>
 
         <!-- TAB TECNICA -->
         <div id="t-tech" class="tab-content">
             <div class="data-grid">
-                <div class="data-card"><div class="label"><span class="tag-iccd">MTC</span>Materia</div><div class="val">Pietra Lavica</div></div>
-                <div class="data-card"><div class="label"><span class="tag-iccd">MIS</span>Misure</div><div class="val">85x42x30 cm</div></div>
-                <div class="data-card" style="grid-column: span 2;"><div class="label"><span class="tag-iccd">EST</span>Stato Conservazione</div><div class="val">Discreto (Lieve erosione superficiale)</div></div>
+                <div class="data-card"><div class="label"><span class="tag-iccd">MTC</span>Materia</div><div class="val" data-field="materia">Pietra Lavica</div></div>
+                <div class="data-card"><div class="label"><span class="tag-iccd">MIS</span>Misure</div><div class="val" data-field="misure">85x42x30 cm</div></div>
+                <div class="data-card" style="grid-column: span 2;"><div class="label"><span class="tag-iccd">EST</span>Stato Conservazione</div><div class="val" data-field="statoConservazione">Discreto (Lieve erosione superficiale)</div></div>
             </div>
         </div>
 
@@ -156,16 +807,604 @@
                 <p style="font-size: 0.8em; color: #64748b;">Solo gli Amministratori possono visualizzare i dati di collocazione fisica e stima economica.</p>
             </div>
             <div id="loc-data" style="display:none;">
-                <div class="data-card" style="margin-bottom:12px;"><div class="label"><span class="tag-iccd">PVT</span>Ubicazione Reale</div><div class="val">Deposito 2 - Scaffale B-14</div></div>
-                <div class="data-card"><div class="label"><span class="tag-iccd">VAL</span>Stima Valore</div><div class="val">€ 18.500,00</div></div>
+                <div class="data-card" style="margin-bottom:12px;"><div class="label"><span class="tag-iccd">PVT</span>Ubicazione Reale</div><div class="val" data-field="ubicazione">Deposito 2 - Scaffale B-14</div></div>
+                <div class="data-card"><div class="label"><span class="tag-iccd">VAL</span>Stima Valore</div><div class="val" data-field="valore">€ 18.500,00</div></div>
             </div>
+        </div>
+
+        <div id="t-audit" class="tab-content">
+            <div class="audit-head">
+                <input id="audit-search" type="text" placeholder="Filtra registro..." oninput="renderAuditTrail(this.value)">
+            </div>
+            <table class="audit-table">
+                <thead>
+                    <tr><th>Quando</th><th>Utente</th><th>Azione</th></tr>
+                </thead>
+                <tbody id="audit-body"></tbody>
+            </table>
         </div>
 
         <button id="save-btn" class="btn-save" style="display:none;" onclick="handleSave()">SALVA NUOVA SCHEDA PROVVISORIA</button>
     </div>
 </div>
 
+<div id="image-lightbox" class="lightbox" onclick="closeImageLightbox()">
+    <div class="lightbox-content" onclick="event.stopPropagation()">
+        <div class="lightbox-head">
+            <div id="lightbox-title">Anteprima immagine</div>
+            <button class="lightbox-close" type="button" onclick="closeImageLightbox()">CHIUDI ✕</button>
+        </div>
+        <div class="lightbox-view">
+            <button id="lightbox-prev" class="lightbox-nav" type="button" onclick="moveLightbox(-1)">◀</button>
+            <img id="lightbox-image" src="" alt="Anteprima">
+            <button id="lightbox-next" class="lightbox-nav" type="button" onclick="moveLightbox(1)">▶</button>
+        </div>
+        <div class="lightbox-foot">
+            <span id="lightbox-index">1 / 1</span>
+            <button id="lightbox-download" class="lightbox-close" type="button">SCARICA</button>
+        </div>
+    </div>
+</div>
+
 <script>
+    const SESSION_KEY = "csmDemoSession";
+    const AUDIT_KEY = "csmDemoAuditLog";
+    const CARDS_KEY_PREFIX = "csmDemoCards::";
+    const CARDS_SCHEMA_KEY_PREFIX = "csmDemoCardsSchema::";
+    const DEMO_CARDS_VERSION = "3";
+    const statusMap = {
+        draft: { label: "BOZZA", bg: "#fef3c7", color: "#92400e" },
+        review: { label: "IN REVISIONE", bg: "#dbeafe", color: "#1d4ed8" },
+        validated: { label: "VALIDATA", bg: "#dcfce7", color: "#166534" },
+        published: { label: "PUBBLICATA", bg: "#ede9fe", color: "#5b21b6" }
+    };
+    const state = {
+        session: null,
+        cards: [],
+        currentCardId: null,
+        suppressAudit: false,
+        activeHotspotCategories: new Set(["degrado", "analisi", "intervento", "iscrizione"]),
+        currentPointId: null,
+        currentDocId: null,
+        galleryFilter: 'tutti',
+        cardPage: 1,
+        cardPageSize: 12,
+        lastCardQuery: '',
+        lightboxDocs: [],
+        lightboxIndex: 0,
+        leafletMap: null,
+        leafletMarker: null
+    };
+    const viewerPoints = {
+        "iscrizione-frontale": {
+            category: "iscrizione",
+            title: "Iscrizione Frontale T-80",
+            description: "Dedica lapidaria con abrasioni leggere sui caratteri inferiori.",
+            severity: "Media",
+            timeline: "Rilievo 2025 - Revisione Q3 2026",
+            attachments: ["Scheda epigrafica", "Foto UV"],
+            action: "Documentazione RTI e consolidamento superficiale",
+            visibleTo: ["studioso", "catalogatore", "archivista"]
+        },
+        "erosione-lato-nord": {
+            category: "degrado",
+            title: "Erosione lato nord",
+            description: "Distacco granulare diffuso e microfratture compatibili con cicli termoigrometrici.",
+            severity: "Alta",
+            timeline: "Segnalazione 2024 - Monitoraggio mensile",
+            attachments: ["Mappa degrado", "Termografia"],
+            action: "Pulitura selettiva e protezione con consolidante reversibile",
+            visibleTo: ["studioso", "catalogatore", "archivista"]
+        },
+        "residui-pigmento": {
+            category: "analisi",
+            title: "Residui di pigmento",
+            description: "Presenza di tracce cromatiche in area incisa, evidenziate in luce radente.",
+            severity: "Bassa",
+            timeline: "Campagna 2026 - Follow-up 2027",
+            attachments: ["Spettro Raman", "Report laboratorio"],
+            action: "Campionamento e analisi spettrofotometrica",
+            visibleTo: ["studioso", "catalogatore", "archivista"]
+        },
+        "microstuccatura-consigliata": {
+            category: "intervento",
+            title: "Intervento suggerito",
+            description: "Lacuna lineare nella porzione mediana con rischio di propagazione.",
+            severity: "Media",
+            timeline: "Proposta 2026 - Verifica esito 2027",
+            attachments: ["Computo intervento", "Capitolato"],
+            action: "Microstuccatura localizzata e monitoraggio trimestrale",
+            visibleTo: ["catalogatore", "archivista"]
+        }
+    };
+
+    function roleRank(role) {
+        const map = { studioso: 1, catalogatore: 2, archivista: 3 };
+        return map[role] || 0;
+    }
+
+    function canCurrentRoleViewPoint(pointId) {
+        const point = viewerPoints[pointId];
+        if (!point || !state.session) { return false; }
+        if (Array.isArray(point.visibleTo)) {
+            return point.visibleTo.includes(state.session.role);
+        }
+        return true;
+    }
+
+    function pointOverrideStore(card) {
+        if (!card) { return {}; }
+        if (!card.viewerPointOverrides) { card.viewerPointOverrides = {}; }
+        return card.viewerPointOverrides;
+    }
+
+    function ensureCardDocuments(card) {
+        if (!card) { return []; }
+        if (!Array.isArray(card.documents)) { card.documents = []; }
+        return card.documents;
+    }
+
+    function getPointData(pointId) {
+        const base = viewerPoints[pointId];
+        if (!base) { return null; }
+        const card = currentCard();
+        const overrides = pointOverrideStore(card)[pointId] || {};
+        return {
+            ...base,
+            ...overrides,
+            attachments: Array.isArray(overrides.attachments) ? overrides.attachments : base.attachments
+        };
+    }
+
+    function documentTypeLabel(type) {
+        const map = {
+            foto: 'Foto',
+            tecnica: 'Tecnica',
+            report: 'Report',
+            analisi: 'Analisi'
+        };
+        return map[type] || 'Documento';
+    }
+
+    function documentThumb(doc) {
+        if (isImageDocument(doc)) {
+            return doc.imagePath;
+        }
+        const palette = {
+            foto: '#0ea5e9',
+            tecnica: '#f59e0b',
+            report: '#10b981',
+            analisi: '#8b5cf6'
+        };
+        const bg = palette[doc.type] || '#64748b';
+        const text = (doc.title || 'DOC').slice(0, 18);
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="210"><rect width="100%" height="100%" fill="${bg}"/><rect x="12" y="12" width="296" height="186" fill="rgba(255,255,255,0.16)" rx="10"/><text x="18" y="116" fill="white" font-size="20" font-family="Arial, sans-serif" font-weight="700">${text}</text></svg>`;
+        return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+    }
+
+    function renderDocumentPreview(doc) {
+        const box = document.getElementById('artifact-preview');
+        if (!doc) {
+            box.style.display = 'none';
+            return;
+        }
+        box.style.display = 'grid';
+        box.innerHTML = '';
+        const img = document.createElement('img');
+        img.src = documentThumb(doc);
+        img.alt = doc.title || 'Documento';
+
+        const info = document.createElement('div');
+        const title = document.createElement('div');
+        title.className = 'artifact-preview-title';
+        title.innerText = doc.title;
+
+        const meta = document.createElement('div');
+        meta.className = 'artifact-preview-meta';
+        meta.innerText = documentTypeLabel(doc.type) + ' · ' + (doc.date || 'Data n.d.');
+
+        const note = document.createElement('div');
+        note.className = 'artifact-preview-meta';
+        note.innerText = doc.note || 'Nessuna nota.';
+
+        const actions = document.createElement('div');
+        actions.className = 'artifact-preview-actions';
+        const btnOpen = document.createElement('button');
+        btnOpen.className = 'doc-action-btn';
+        btnOpen.innerText = isImageDocument(doc) ? '🔎 Ingrandisci' : '↗ Apri';
+        btnOpen.onclick = () => openDocument(doc);
+        const btnDl = document.createElement('button');
+        btnDl.className = 'doc-action-btn';
+        btnDl.innerText = '⬇ Scarica';
+        btnDl.onclick = () => downloadDocument(doc);
+        actions.appendChild(btnOpen);
+        actions.appendChild(btnDl);
+
+        info.appendChild(title);
+        info.appendChild(meta);
+        info.appendChild(note);
+        info.appendChild(actions);
+        box.appendChild(img);
+        box.appendChild(info);
+    }
+
+    function selectDocument(docId) {
+        state.currentDocId = docId;
+        const card = currentCard();
+        const docs = ensureCardDocuments(card);
+        const doc = docs.find(d => d.id === docId) || null;
+        document.querySelectorAll('.doc-thumb').forEach(el => {
+            el.classList.toggle('active', el.dataset.docId === docId);
+        });
+        renderDocumentPreview(doc);
+    }
+
+    function renderArtifactContext(card) {
+        const docs = ensureCardDocuments(card);
+        document.getElementById('artifact-location-value').innerText = card && card.ubicazione ? card.ubicazione : 'Ubicazione non disponibile';
+        document.getElementById('artifact-doc-count').innerText = docs.length + ' documenti';
+        document.getElementById('btn-add-doc').style.display = isArchivista() ? 'inline-block' : 'none';
+        document.getElementById('btn-edit-geo').style.display = isArchivista() ? 'inline-block' : 'none';
+
+        const filter = state.galleryFilter || 'tutti';
+        const filtered = filter === 'tutti' ? docs : docs.filter(d => (d.type || '').toLowerCase() === filter);
+
+        const gallery = document.getElementById('artifact-gallery');
+        gallery.innerHTML = '';
+
+        if (filtered.length === 0) {
+            gallery.innerHTML = '<div style="font-size:0.75em; color:#64748b;">' + (docs.length === 0 ? 'Nessun documento archiviato per questa scheda.' : 'Nessun documento per il filtro selezionato.') + '</div>';
+            renderDocumentPreview(null);
+            state.currentDocId = null;
+            updateArtifactMap(card);
+            return;
+        }
+
+        filtered.forEach(doc => {
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'doc-thumb' + (doc.id === state.currentDocId ? ' active' : '');
+            item.dataset.docId = doc.id;
+            item.onclick = () => selectDocument(doc.id);
+
+            const img = document.createElement('img');
+            img.src = documentThumb(doc);
+            img.alt = doc.title;
+
+            const name = document.createElement('div');
+            name.className = 'doc-thumb-name';
+            name.innerText = doc.title;
+
+            const type = document.createElement('div');
+            type.className = 'doc-thumb-type';
+            type.innerText = documentTypeLabel(doc.type);
+
+            item.appendChild(img);
+            item.appendChild(name);
+            item.appendChild(type);
+            gallery.appendChild(item);
+        });
+
+        const hasCurrent = filtered.some(d => d.id === state.currentDocId);
+        const active = hasCurrent ? filtered.find(d => d.id === state.currentDocId) : filtered[0];
+        state.currentDocId = active ? active.id : null;
+        renderDocumentPreview(active || null);
+        document.querySelectorAll('.doc-thumb').forEach(el => {
+            el.classList.toggle('active', el.dataset.docId === state.currentDocId);
+        });
+
+        updateArtifactMap(card);
+    }
+
+    function addDocumentToCard() {
+        if (!isArchivista()) {
+            alert('Solo archivista puo archiviare nuovi documenti.');
+            return;
+        }
+        const card = currentCard();
+        if (!card) {
+            alert('Seleziona prima una scheda.');
+            return;
+        }
+
+        const title = prompt('Titolo documento:');
+        if (!title) { return; }
+        const rawType = (prompt('Tipo documento (foto, tecnica, report, analisi):', 'report') || 'report').toLowerCase();
+        const allowedTypes = ['foto', 'tecnica', 'report', 'analisi'];
+        const type = allowedTypes.includes(rawType) ? rawType : 'report';
+        const note = prompt('Nota o descrizione breve:', 'Documento collegato al modello 3D.') || '';
+        const date = new Date().toISOString().slice(0, 10);
+
+        const docs = ensureCardDocuments(card);
+        const newDoc = {
+            id: 'doc-' + Date.now(),
+            title: title.trim(),
+            type: type,
+            date: date,
+            note: note.trim()
+        };
+
+        docs.unshift(newDoc);
+        saveCards();
+        state.currentDocId = newDoc.id;
+        renderArtifactContext(card);
+        addAudit('Archiviato nuovo documento: ' + newDoc.title);
+    }
+
+    // ── Gallery filter ────────────────────────────────────────────────
+    function setGalleryFilter(type, btn) {
+        state.galleryFilter = type;
+        document.querySelectorAll('.gf-btn').forEach(b => b.classList.remove('active'));
+        if (btn) btn.classList.add('active');
+        const card = currentCard();
+        if (card) renderArtifactContext(card);
+    }
+
+    // ── Document open / download (demo) ──────────────────────────────
+    function openDocument(doc) {
+        if (isImageDocument(doc)) {
+            openImageLightboxById(doc.id);
+            return;
+        }
+        alert('Apertura documento: ' + doc.title + '\nTipo: ' + documentTypeLabel(doc.type) + '\nData: ' + (doc.date || 'n.d.') + '\n\n[In produzione questo aprirà il file dal repository documentale.]');
+    }
+
+    function downloadDocument(doc) {
+        if (isImageDocument(doc)) {
+            const a = document.createElement('a');
+            a.href = doc.imagePath;
+            a.download = (doc.title || 'immagine').replace(/\s+/g, '_');
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            return;
+        }
+        // In demo mode: create a minimal text blob and trigger download
+        const content = 'ICCD Digital Archive\n\nDocumento: ' + doc.title + '\nTipo: ' + documentTypeLabel(doc.type) + '\nData: ' + (doc.date || 'n.d.') + '\nNota: ' + (doc.note || '') + '\n\n[Placeholder — il file reale sarebbe allegato dal repository.]';
+        const blob = new Blob([content], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = doc.title.replace(/\s+/g, '_') + '.txt';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    // ── Geographic Map (Leaflet) ──────────────────────────────────────
+    function initArtifactMap() {
+        if (state.leafletMap) return;
+        const mapEl = document.getElementById('artifact-map');
+        if (!mapEl || typeof L === 'undefined') return;
+        const map = L.map('artifact-map', { zoomControl: true, scrollWheelZoom: false });
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+            maxZoom: 18
+        }).addTo(map);
+        state.leafletMap = map;
+        state.leafletMarker = null;
+    }
+
+    function updateArtifactMap(card) {
+        if (typeof L === 'undefined') return;
+        initArtifactMap();
+        const map = state.leafletMap;
+        if (!map) return;
+
+        const lat = card && card.geoLat;
+        const lng = card && card.geoLng;
+        const label = (card && card.geoLabel) || (card && card.denominazione) || 'Localizzazione sconosciuta';
+
+        document.getElementById('artifact-map-label').innerText = label;
+
+        if (lat && lng) {
+            document.getElementById('map-coords-text').innerText = 'lat: ' + lat.toFixed(5) + '  lng: ' + lng.toFixed(5);
+            if (state.leafletMarker) {
+                state.leafletMarker.setLatLng([lat, lng]).setPopupContent('<b>' + label + '</b>');
+            } else {
+                const customIcon = L.divIcon({
+                    className: '',
+                    html: '<div style="width:14px;height:14px;background:#004481;border:3px solid white;border-radius:50%;box-shadow:0 0 8px rgba(0,68,129,0.6);"></div>',
+                    iconSize: [14, 14],
+                    iconAnchor: [7, 7]
+                });
+                state.leafletMarker = L.marker([lat, lng], { icon: customIcon })
+                    .addTo(map)
+                    .bindPopup('<b>' + label + '</b>', { maxWidth: 200 });
+            }
+            map.setView([lat, lng], 12);
+            setTimeout(() => map.invalidateSize(), 50);
+        } else {
+            document.getElementById('map-coords-text').innerText = 'lat: —  lng: —';
+            document.getElementById('artifact-map-label').innerText = 'Coordinate non disponibili';
+            if (state.leafletMarker) { map.removeLayer(state.leafletMarker); state.leafletMarker = null; }
+        }
+    }
+
+    function editGeoLocation() {
+        if (!isArchivista()) return;
+        const card = currentCard();
+        if (!card) return;
+        const latStr = prompt('Latitudine (decimale, es. 37.2912):', card.geoLat !== undefined ? String(card.geoLat) : '');
+        if (latStr === null) return;
+        const lngStr = prompt('Longitudine (decimale, es. 13.5868):', card.geoLng !== undefined ? String(card.geoLng) : '');
+        if (lngStr === null) return;
+        const lbl = prompt('Etichetta luogo (es. "Agrigento, scavo 1994"):', card.geoLabel || '');
+        if (lbl === null) return;
+        const lat = parseFloat(latStr);
+        const lng = parseFloat(lngStr);
+        if (isNaN(lat) || isNaN(lng)) { alert('Coordinate non valide.'); return; }
+        card.geoLat = lat;
+        card.geoLng = lng;
+        card.geoLabel = lbl.trim();
+        saveCards();
+        updateArtifactMap(card);
+        addAudit('Aggiornata localizzazione geografica: ' + lbl.trim());
+    }
+
+    function normalizeArchiveKey(name) {
+        return (name || "standard").toLowerCase().replace(/\s+/g, "_");
+    }
+
+    function cardsStorageKey() {
+        return CARDS_KEY_PREFIX + normalizeArchiveKey(state.session && state.session.archive);
+    }
+
+    function cardsSchemaKey() {
+        return CARDS_SCHEMA_KEY_PREFIX + normalizeArchiveKey(state.session && state.session.archive);
+    }
+
+    function isImageDocument(doc) {
+        return !!(doc && doc.imagePath);
+    }
+
+    function defaultCardsForArchive() {
+        return [
+            {
+                id: "macina-di-ercolano",
+                tsk: "OA",
+                nct: "00123456",
+                oggetto: "Macinello / Utensile di Cucina",
+                denominazione: "Macina di Ercolano",
+                autore: "Ignoto",
+                cronologia: "I-II Secolo d.C.",
+                analisi: "Utensile domestico con tracce di uso antico.",
+                materia: "Pietra Lavica",
+                misure: "Variabile",
+                statoConservazione: "Buono",
+                ubicazione: "Deposito Archeologico",
+                valore: "EUR 5.200,00",
+                status: "validated",
+                geoLat: 40.8063, geoLng: 14.3589,
+                geoLabel: "Ercolano, Scavi Archeologici",
+                modelPath: "demo-data/objects/macina-di-ercolano/model/meta_con_scritta.glb",
+                customParams: [],
+                documents: [
+                    {
+                        id: "m-1",
+                        title: "Macina nel pistrinum",
+                        type: "foto",
+                        date: "2026-05-13",
+                        note: "Foto contestuale della macina.",
+                        imagePath: "demo-data/objects/macina-di-ercolano/images/5-la-macina-del-grano-nel-pistrinum.webp"
+                    },
+                    {
+                        id: "m-2",
+                        title: "Forno di cottura",
+                        type: "foto",
+                        date: "2026-05-13",
+                        note: "Dettaglio ambiente di lavorazione.",
+                        imagePath: "demo-data/objects/macina-di-ercolano/images/6-il-forno-di-cottura-del-pane.webp"
+                    }
+                ]
+            },
+            {
+                id: "busto-di-roza-loewenfeld",
+                tsk: "OA",
+                nct: "00445891",
+                oggetto: "Busto in Marmo",
+                denominazione: "Busto di Roza Loewenfeld",
+                autore: "Scultore contemporaneo",
+                cronologia: "XX Secolo",
+                analisi: "Ritratto in marmo bianco, esecuzione raffinata.",
+                materia: "Marmo",
+                misure: "60x45x35 cm",
+                statoConservazione: "Ottimo",
+                ubicazione: "Collezione Privata",
+                valore: "EUR 12.500,00",
+                status: "review",
+                geoLat: 41.9028, geoLng: 12.4964,
+                geoLabel: "Roma, Collezione",
+                modelPath: "demo-data/objects/busto-di-roza-loewenfeld/model/sculpture_bust_of_roza_loewenfeld.glb",
+                customParams: [],
+                documents: [
+                    {
+                        id: "b-1",
+                        title: "Busto di Roza Loewenfeld",
+                        type: "foto",
+                        date: "2026-05-13",
+                        note: "Foto principale del busto.",
+                        imagePath: "demo-data/objects/busto-di-roza-loewenfeld/images/22486273_119352712497.jpg"
+                    }
+                ]
+            },
+            {
+                id: "christ-resurrected",
+                tsk: "OA",
+                nct: "00777012",
+                oggetto: "Statua Religiosa",
+                denominazione: "Christ Resurrected",
+                autore: "Scultore barocco",
+                cronologia: "XVII-XVIII Secolo",
+                analisi: "Scultura religiosa di grande pregio artistico.",
+                materia: "Marmo",
+                misure: "2.5m",
+                statoConservazione: "Buono",
+                ubicazione: "Museo Diocesano",
+                valore: "EUR 45.000,00",
+                status: "draft",
+                geoLat: 41.8902, geoLng: 12.4922,
+                geoLabel: "Roma, Museo Diocesano",
+                modelPath: "demo-data/objects/christ-resurrected/model/sculpture_christ_resurrected.glb",
+                customParams: [],
+                documents: []
+            }
+        ];
+    }
+
+    function loadCards() {
+        const raw = localStorage.getItem(cardsStorageKey());
+        const schema = localStorage.getItem(cardsSchemaKey());
+        if (!raw) {
+            state.cards = defaultCardsForArchive();
+            saveCards();
+            return;
+        }
+        try {
+            const parsed = JSON.parse(raw);
+            if (schema !== DEMO_CARDS_VERSION) {
+                state.cards = defaultCardsForArchive();
+                saveCards();
+                return;
+            }
+            const isLegacy = !Array.isArray(parsed)
+                || parsed.some(card => {
+                    if (!card || typeof card !== 'object') { return true; }
+                    const legacyId = typeof card.id === 'string' && card.id.startsWith('card-');
+                    const missingModel = !card.modelPath;
+                    return legacyId || missingModel;
+                });
+
+            if (isLegacy) {
+                state.cards = defaultCardsForArchive();
+                saveCards();
+            } else {
+                state.cards = parsed;
+            }
+        } catch {
+            state.cards = defaultCardsForArchive();
+            saveCards();
+        }
+    }
+
+    function saveCards() {
+        localStorage.setItem(cardsStorageKey(), JSON.stringify(state.cards));
+        localStorage.setItem(cardsSchemaKey(), DEMO_CARDS_VERSION);
+    }
+
+    function isArchivista() {
+        return state.session && state.session.role === 'archivista';
+    }
+
+    function isEditor() {
+        return state.session && (state.session.role === 'archivista' || state.session.role === 'catalogatore');
+    }
+
+    function currentCard() {
+        return state.cards.find(c => c.id === state.currentCardId) || null;
+    }
+
     function openTab(evt, tabName) {
         let contents = document.getElementsByClassName("tab-content");
         for (let c of contents) { c.style.display = "none"; }
@@ -176,46 +1415,641 @@
     }
 
     window.onload = () => {
-        const p = new URLSearchParams(window.location.search);
-        const role = p.get('role');
-        const arc = p.get('arc');
-        
-        document.getElementById('nav-title').innerText = arc || "ARCHIVIO DIGITALE";
-        document.getElementById('arc-tag').innerText = "UNITÀ DI GESTIONE: " + (arc || "STANDARD");
-        
+        const sessionRaw = localStorage.getItem(SESSION_KEY);
+        if (!sessionRaw) {
+            window.location.href = "index.html";
+            return;
+        }
+
+        state.session = JSON.parse(sessionRaw);
+        document.getElementById('nav-title').innerText = state.session.archive || "ARCHIVIO DIGITALE";
+        document.getElementById('arc-tag').innerText = "UNITÀ DI GESTIONE: " + (state.session.archive || "STANDARD");
+
         const badge = document.getElementById('user-display');
-        
-        if (role === 'archivista') {
-            badge.innerText = "ADMIN: " + role; badge.style.color = "#fbbf24";
+
+        if (state.session.role === 'archivista') {
+            badge.innerText = "ARCHIVISTA: " + state.session.username;
+            badge.style.color = "#fbbf24";
             document.getElementById('loc-locked').style.display = "none";
             document.getElementById('loc-data').style.display = "block";
             document.getElementById('btn-loc').innerText = "LOGISTICA 🔓";
-        } else if (role === 'catalogatore') {
-            badge.innerText = "EDITOR: " + role; badge.style.color = "#34d399";
-            enableEditorMode();
+            document.getElementById('archivista-tools').style.display = "flex";
+            document.getElementById('param-builder').style.display = "block";
+            enableArchivistaMode();
+        } else if (state.session.role === 'catalogatore') {
+            badge.innerText = "CATALOGATORE: " + state.session.username;
+            badge.style.color = "#34d399";
+            enableCatalogatoreMode();
         } else {
-            badge.innerText = "STUDIOSO"; badge.style.color = "#60a5fa";
+            badge.innerText = "STUDIOSO: " + state.session.username;
+            badge.style.color = "#60a5fa";
         }
+
+        loadCards();
+        renderCardList("");
+        if (state.cards.length > 0) {
+            selectCard(state.cards[0].id, false);
+        }
+        renderAuditTrail("");
+        init3DViewer();
+        initArtifactMap();
     };
 
-    function enableEditorMode() {
-        document.getElementById('obj-title').innerText = "Immissione Nuovo Bene";
-        document.getElementById('main-viewer').style.display = "none";
-        document.getElementById('upload-hint').style.display = "block";
-        document.getElementById('save-btn').style.display = "block";
-        document.querySelectorAll('.val').forEach(v => {
-            const txt = v.innerText;
-            v.innerHTML = `<input type="text" placeholder="Inserisci ${txt}...">`;
+    function handleLogout() {
+        localStorage.removeItem(SESSION_KEY);
+        window.location.href = "index.html";
+    }
+
+    function resetViewer() {
+        const viewer = document.getElementById('main-viewer');
+        if (!viewer) { return; }
+        const orbit = viewer.dataset.defaultOrbit || '45deg 75deg 2.2m';
+        viewer.cameraOrbit = orbit;
+        viewer.cameraTarget = '0m 0m 0m';
+        viewer.fieldOfView = '30deg';
+    }
+
+    function open3DPoint(pointId) {
+        if (!canCurrentRoleViewPoint(pointId)) {
+            alert('Punto non disponibile per il tuo profilo utente.');
+            return;
+        }
+        const point = getPointData(pointId);
+        if (!point) { return; }
+        state.currentPointId = pointId;
+        const box = document.getElementById('viewer-info');
+        box.style.display = 'block';
+        document.getElementById('viewer-info-title').innerText = point.title;
+        document.getElementById('viewer-info-text').innerText = point.description;
+        document.getElementById('viewer-info-cat').innerText = point.category;
+        document.getElementById('viewer-info-sev').innerText = point.severity;
+        document.getElementById('viewer-info-time').innerText = point.timeline || '-';
+        document.getElementById('viewer-info-att').innerText = (point.attachments || []).join(', ') || '-';
+        document.getElementById('viewer-info-act').innerText = point.action;
+        document.getElementById('viewer-edit-btn').style.display = isArchivista() ? 'inline-block' : 'none';
+    }
+
+    function toggleHotspotCategory(category, btnEl) {
+        if (state.activeHotspotCategories.has(category)) {
+            state.activeHotspotCategories.delete(category);
+            btnEl.classList.add('off');
+        } else {
+            state.activeHotspotCategories.add(category);
+            btnEl.classList.remove('off');
+        }
+        applyHotspotFilters();
+    }
+
+    function applyHotspotFilters() {
+        document.querySelectorAll('.hotspot').forEach(point => {
+            const cat = point.dataset.category;
+            const id = point.dataset.pointId;
+            const visibleByFilter = state.activeHotspotCategories.has(cat);
+            const visibleByRole = canCurrentRoleViewPoint(id);
+            point.style.display = (visibleByFilter && visibleByRole) ? 'block' : 'none';
+        });
+
+        if (state.currentPointId) {
+            const isAllowed = canCurrentRoleViewPoint(state.currentPointId);
+            const pointEl = document.querySelector('.hotspot[data-point-id="' + state.currentPointId + '"]');
+            const isVisible = pointEl && pointEl.style.display !== 'none';
+            if (!isAllowed || !isVisible) {
+                state.currentPointId = null;
+                document.getElementById('viewer-info').style.display = 'none';
+            }
+        }
+    }
+
+    function init3DViewer() {
+        applyHotspotFilters();
+        state.currentPointId = null;
+        document.getElementById('viewer-info').style.display = 'none';
+        document.getElementById('viewer-edit-btn').style.display = 'none';
+
+        // Close hotspot panel when clicking outside hotspots/panel area.
+        document.addEventListener('click', function (event) {
+            const info = document.getElementById('viewer-info');
+            if (!info || info.style.display === 'none') { return; }
+            const clickedHotspot = event.target && event.target.closest && event.target.closest('.hotspot');
+            const clickedInfo = event.target && event.target.closest && event.target.closest('#viewer-info');
+            if (!clickedHotspot && !clickedInfo) {
+                info.style.display = 'none';
+                state.currentPointId = null;
+            }
         });
     }
 
+    function closeSectionFullscreens() {
+        document.getElementById('viewer-box').classList.remove('fullscreen-section');
+        document.querySelector('.geo-panel').classList.remove('fullscreen-section');
+        document.getElementById('artifact-context').classList.remove('fullscreen-section');
+
+        const btn3d = document.getElementById('btn-expand-3d');
+        if (btn3d) { btn3d.innerText = 'ESPANDI 3D'; }
+        const btnMap = document.getElementById('btn-expand-map');
+        if (btnMap) { btnMap.innerText = 'ESPANDI MAPPA'; }
+        const btnGal = document.getElementById('btn-expand-gallery');
+        if (btnGal) { btnGal.innerText = 'ESPANDI GALLERIA'; }
+
+        if (state.leafletMap) {
+            setTimeout(() => state.leafletMap.invalidateSize(), 120);
+        }
+    }
+
+    function toggle3DFullscreen() {
+        const box = document.getElementById('viewer-box');
+        const wasOpen = box.classList.contains('fullscreen-section');
+        closeSectionFullscreens();
+        if (!wasOpen) {
+            box.classList.add('fullscreen-section');
+            document.getElementById('btn-expand-3d').innerText = 'CHIUDI 3D';
+        }
+    }
+
+    function toggleMapFullscreen() {
+        const mapPanel = document.querySelector('.geo-panel');
+        const wasOpen = mapPanel.classList.contains('fullscreen-section');
+        closeSectionFullscreens();
+        if (!wasOpen) {
+            mapPanel.classList.add('fullscreen-section');
+            document.getElementById('btn-expand-map').innerText = 'CHIUDI MAPPA';
+            if (state.leafletMap) {
+                setTimeout(() => state.leafletMap.invalidateSize(), 120);
+            }
+        }
+    }
+
+    function toggleGalleryFullscreen() {
+        const galleryPanel = document.getElementById('artifact-context');
+        const wasOpen = galleryPanel.classList.contains('fullscreen-section');
+        closeSectionFullscreens();
+        if (!wasOpen) {
+            galleryPanel.classList.add('fullscreen-section');
+            document.getElementById('btn-expand-gallery').innerText = 'CHIUDI GALLERIA';
+        }
+    }
+
+    function editCurrent3DPoint() {
+        if (!isArchivista()) {
+            alert('Solo archivista puo modificare i dettagli dei punti 3D.');
+            return;
+        }
+        const card = currentCard();
+        if (!card) {
+            alert('Seleziona prima una scheda.');
+            return;
+        }
+        if (!state.currentPointId) {
+            alert('Seleziona un hotspot prima di modificare.');
+            return;
+        }
+
+        const current = getPointData(state.currentPointId);
+        if (!current) { return; }
+
+        const timeline = prompt('Timeline del punto:', current.timeline || '');
+        if (timeline === null) { return; }
+        const attachmentsRaw = prompt('Allegati (separati da virgola):', (current.attachments || []).join(', '));
+        if (attachmentsRaw === null) { return; }
+        const action = prompt('Azione consigliata:', current.action || '');
+        if (action === null) { return; }
+
+        const overrides = pointOverrideStore(card);
+        overrides[state.currentPointId] = {
+            timeline: timeline.trim(),
+            attachments: attachmentsRaw.split(',').map(v => v.trim()).filter(Boolean),
+            action: action.trim()
+        };
+        saveCards();
+        open3DPoint(state.currentPointId);
+        addAudit('Aggiornato punto 3D: ' + state.currentPointId);
+    }
+
+    function clearDemoStorage() {
+        localStorage.removeItem(SESSION_KEY);
+        localStorage.removeItem(AUDIT_KEY);
+        Object.keys(localStorage)
+            .filter(key => key.startsWith(CARDS_KEY_PREFIX) || key.startsWith(CARDS_SCHEMA_KEY_PREFIX))
+            .forEach(key => localStorage.removeItem(key));
+    }
+
+    function handleResetDemoData() {
+        const ok = confirm("Vuoi davvero resettare tutti i dati demo? L'azione non e annullabile.");
+        if (!ok) { return; }
+        clearDemoStorage();
+        alert("Dati demo ripristinati con successo.");
+        window.location.href = "index.html";
+    }
+
+    function toggleInfoPanelFullscreen() {
+        const panel = document.getElementById('info-panel');
+        const btn = document.getElementById('btn-panel-fullscreen');
+        const isFull = panel.classList.toggle('fullscreen');
+        document.body.classList.toggle('panel-fullscreen', isFull);
+        if (btn) {
+            btn.innerText = isFull ? 'CHIUDI SCHEDA' : 'ESPANDI SCHEDA';
+        }
+        if (state.leafletMap) {
+            setTimeout(() => state.leafletMap.invalidateSize(), 120);
+        }
+    }
+
+    function openImageLightboxById(docId) {
+        const card = currentCard();
+        const docs = ensureCardDocuments(card).filter(isImageDocument);
+        const idx = docs.findIndex(d => d.id === docId);
+        if (idx < 0) { return; }
+        state.lightboxDocs = docs;
+        state.lightboxIndex = idx;
+        renderLightbox();
+        document.getElementById('image-lightbox').classList.add('open');
+    }
+
+    function renderLightbox() {
+        const lb = document.getElementById('image-lightbox');
+        if (!lb || state.lightboxDocs.length === 0) { return; }
+        const doc = state.lightboxDocs[state.lightboxIndex];
+        document.getElementById('lightbox-image').src = doc.imagePath;
+        document.getElementById('lightbox-title').innerText = doc.title || 'Anteprima immagine';
+        document.getElementById('lightbox-index').innerText = (state.lightboxIndex + 1) + ' / ' + state.lightboxDocs.length;
+        document.getElementById('lightbox-prev').disabled = state.lightboxIndex === 0;
+        document.getElementById('lightbox-next').disabled = state.lightboxIndex === state.lightboxDocs.length - 1;
+        document.getElementById('lightbox-download').onclick = () => downloadDocument(doc);
+    }
+
+    function moveLightbox(step) {
+        if (!state.lightboxDocs.length) { return; }
+        state.lightboxIndex = Math.max(0, Math.min(state.lightboxDocs.length - 1, state.lightboxIndex + step));
+        renderLightbox();
+    }
+
+    function closeImageLightbox() {
+        document.getElementById('image-lightbox').classList.remove('open');
+    }
+
+    function enableCatalogatoreMode() {
+        makeCardEditable();
+        document.getElementById('save-btn').style.display = "block";
+        document.getElementById('save-btn').innerText = "SALVA MODIFICHE BOZZA";
+    }
+
+    function enableArchivistaMode() {
+        document.getElementById('obj-title').innerText = "Immissione Nuovo Bene";
+        document.getElementById('main-viewer').style.display = "none";
+        document.getElementById('viewer-toolbar').style.display = "none";
+        document.getElementById('viewer-info').style.display = "none";
+        document.getElementById('artifact-context').style.display = "none";
+        document.getElementById('upload-hint').style.display = "block";
+        document.getElementById('save-btn').style.display = "block";
+        document.getElementById('save-btn').innerText = "SALVA NUOVA SCHEDA";
+        makeCardEditable();
+    }
+
+    function makeCardEditable() {
+        document.querySelectorAll('.val[data-field]').forEach(v => {
+            if (v.querySelector('input')) { return; }
+            const txt = v.innerText.trim();
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = txt;
+            input.placeholder = 'Inserisci valore...';
+            v.innerHTML = '';
+            v.appendChild(input);
+        });
+    }
+
+    function setFieldValue(name, value) {
+        const el = document.querySelector(`.val[data-field="${name}"]`);
+        if (!el) { return; }
+        if (el.querySelector('input')) {
+            el.querySelector('input').value = value || '';
+        } else {
+            el.innerText = value || '';
+        }
+    }
+
+    function cardStatusLabel(status) {
+        return (statusMap[status] || statusMap.draft).label;
+    }
+
+    function filteredCards(query) {
+        const q = (query || '').trim().toLowerCase();
+        return state.cards.filter(c => {
+            return c.denominazione.toLowerCase().includes(q) || c.nct.toLowerCase().includes(q);
+        });
+    }
+
+    function updateCardPagination(totalResults) {
+        const info = document.getElementById('card-page-info');
+        const prev = document.getElementById('card-prev');
+        const next = document.getElementById('card-next');
+
+        if (!info || !prev || !next) { return; }
+
+        if (totalResults === 0) {
+            info.innerText = '0 risultati';
+            prev.disabled = true;
+            next.disabled = true;
+            return;
+        }
+
+        const maxPage = Math.max(1, Math.ceil(totalResults / state.cardPageSize));
+        info.innerText = 'Pagina ' + state.cardPage + '/' + maxPage + ' · ' + totalResults + ' risultati';
+        prev.disabled = state.cardPage <= 1;
+        next.disabled = state.cardPage >= maxPage;
+    }
+
+    function changeCardPage(delta) {
+        const searchInput = document.getElementById('card-search');
+        const query = searchInput ? searchInput.value : '';
+        const total = filteredCards(query).length;
+        const maxPage = Math.max(1, Math.ceil(total / state.cardPageSize));
+        state.cardPage = Math.min(maxPage, Math.max(1, state.cardPage + delta));
+        renderCardList(query, false);
+    }
+
+    function renderCardList(filter, resetPage = true) {
+        const q = (filter || '').trim().toLowerCase();
+        if (resetPage || q !== state.lastCardQuery) {
+            state.cardPage = 1;
+        }
+        state.lastCardQuery = q;
+
+        const list = document.getElementById('card-list');
+        list.innerHTML = '';
+        const filtered = filteredCards(q);
+
+        if (filtered.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'card-item';
+            empty.innerHTML = '<span class="card-item-title">Nessun risultato</span>';
+            list.appendChild(empty);
+            updateCardPagination(0);
+            return;
+        }
+
+        const maxPage = Math.max(1, Math.ceil(filtered.length / state.cardPageSize));
+        if (state.cardPage > maxPage) {
+            state.cardPage = maxPage;
+        }
+        const start = (state.cardPage - 1) * state.cardPageSize;
+        const pageItems = filtered.slice(start, start + state.cardPageSize);
+
+        pageItems.forEach(card => {
+            const row = document.createElement('div');
+            row.className = 'card-item' + (card.id === state.currentCardId ? ' active' : '');
+            row.onclick = () => selectCard(card.id, false);
+
+            const title = document.createElement('span');
+            title.className = 'card-item-title';
+            title.innerText = card.nct + ' · ' + card.denominazione;
+
+            const status = document.createElement('span');
+            status.className = 'card-item-status';
+            status.innerText = cardStatusLabel(card.status);
+
+            row.appendChild(title);
+            row.appendChild(status);
+            list.appendChild(row);
+        });
+
+        updateCardPagination(filtered.length);
+    }
+
+    function selectCard(cardId, auditAction) {
+        state.currentCardId = cardId;
+        const card = currentCard();
+        if (!card) { return; }
+
+        document.getElementById('main-viewer').style.display = 'block';
+        document.getElementById('viewer-toolbar').style.display = 'flex';
+        document.getElementById('upload-hint').style.display = 'none';
+        document.getElementById('artifact-context').style.display = 'grid';
+
+        state.currentPointId = null;
+        document.getElementById('viewer-info').style.display = 'none';
+
+        // Load the correct 3D model for this object
+        const viewer = document.getElementById('main-viewer');
+        if (viewer && card.modelPath) {
+            viewer.src = card.modelPath;
+        }
+
+        document.getElementById('obj-title').innerText = card.denominazione || 'Scheda';
+        setFieldValue('tsk', card.tsk);
+        setFieldValue('nct', card.nct);
+        setFieldValue('oggetto', card.oggetto);
+        setFieldValue('denominazione', card.denominazione);
+        setFieldValue('autore', card.autore);
+        setFieldValue('cronologia', card.cronologia);
+        setFieldValue('analisi', card.analisi);
+        setFieldValue('materia', card.materia);
+        setFieldValue('misure', card.misure);
+        setFieldValue('statoConservazione', card.statoConservazione);
+        setFieldValue('ubicazione', card.ubicazione);
+        setFieldValue('valore', card.valore);
+
+        renderCustomParams(card.customParams || []);
+        renderArtifactContext(card);
+        changeStatus(card.status || 'draft', false);
+        renderCardList(document.getElementById('card-search').value);
+        applyHotspotFilters();
+        if (state.currentPointId) {
+            open3DPoint(state.currentPointId);
+        }
+
+        if (isEditor()) {
+            makeCardEditable();
+        }
+        if (auditAction) {
+            addAudit('Apertura scheda: ' + card.nct);
+        }
+    }
+
+    function changeStatus(status, shouldAudit = true) {
+        const card = currentCard();
+        if (!card) { return; }
+
+        const statusSelect = document.getElementById('status-select');
+        if (statusSelect) { statusSelect.value = status; }
+
+        if (!isArchivista() && (status === 'validated' || status === 'published')) {
+            alert('Solo archivista puo impostare stato Validata o Pubblicata.');
+            document.getElementById('status-select').value = card.status || 'draft';
+            return;
+        }
+
+        card.status = status;
+        saveCards();
+
+        const cfg = statusMap[status] || statusMap.draft;
+        const pill = document.getElementById('status-pill');
+        pill.innerText = cfg.label;
+        pill.style.background = cfg.bg;
+        pill.style.color = cfg.color;
+        renderCardList(document.getElementById('card-search').value);
+
+        if (shouldAudit) {
+            addAudit('Cambio stato scheda: ' + cfg.label + ' (' + card.nct + ')');
+        }
+    }
+
+    function addParameterPrompt() {
+        if (!isArchivista()) {
+            alert('Permesso negato: solo archivista puo aggiungere parametri.');
+            return;
+        }
+        const identTabBtn = document.querySelector(".tab-btn[onclick*=\"t-ident\"]");
+        if (identTabBtn) {
+            identTabBtn.click();
+        }
+        const input = document.getElementById('param-name');
+        if (input) {
+            input.focus();
+        }
+    }
+
+    function addParameterFromForm() {
+        if (!isArchivista()) {
+            alert('Permesso negato: solo archivista puo aggiungere parametri.');
+            return;
+        }
+        const card = currentCard();
+        if (!card) {
+            alert('Seleziona prima una scheda.');
+            return;
+        }
+
+        const name = document.getElementById('param-name').value.trim();
+        const type = document.getElementById('param-type').value;
+        const required = document.getElementById('param-required').checked;
+        const value = document.getElementById('param-value').value.trim();
+
+        if (!name) {
+            alert('Inserisci il nome del parametro.');
+            return;
+        }
+
+        card.customParams = card.customParams || [];
+        card.customParams.push({ name: name, type: type, required: required, value: value });
+        saveCards();
+        renderCustomParams(card.customParams);
+        addAudit('Aggiunto parametro: ' + name + ' [' + type + ']' + (required ? ' (obbligatorio)' : ''));
+
+        document.getElementById('param-name').value = '';
+        document.getElementById('param-value').value = '';
+        document.getElementById('param-required').checked = false;
+    }
+
+    function renderCustomParams(params) {
+        const wrap = document.getElementById('custom-params');
+        wrap.innerHTML = '';
+
+        (params || []).forEach((param, idx) => {
+            const card = document.createElement('div');
+            card.className = 'data-card';
+            card.style.gridColumn = 'span 2';
+
+            const label = document.createElement('div');
+            label.className = 'label';
+            label.innerText = param.name + ' [' + param.type.toUpperCase() + ']' + (param.required ? ' *' : '');
+
+            const value = document.createElement('div');
+            value.className = 'val';
+            if (isEditor()) {
+                const input = document.createElement('input');
+                input.type = param.type === 'number' ? 'number' : (param.type === 'date' ? 'date' : 'text');
+                input.value = param.value || '';
+                input.oninput = (e) => {
+                    const active = currentCard();
+                    if (!active || !active.customParams || !active.customParams[idx]) { return; }
+                    active.customParams[idx].value = e.target.value;
+                    saveCards();
+                };
+                value.appendChild(input);
+            } else {
+                value.innerText = param.value || '-';
+            }
+
+            card.appendChild(label);
+            card.appendChild(value);
+            wrap.appendChild(card);
+        });
+    }
+
+    function addAudit(action) {
+        if (!state.session) { return; }
+        const logs = JSON.parse(localStorage.getItem(AUDIT_KEY) || '[]');
+        const card = currentCard();
+        logs.unshift({
+            when: new Date().toISOString(),
+            user: state.session.username,
+            role: state.session.role,
+            archive: state.session.archive,
+            action: action,
+            card: card ? card.nct : "-"
+        });
+        localStorage.setItem(AUDIT_KEY, JSON.stringify(logs.slice(0, 100)));
+        renderAuditTrail(document.getElementById('audit-search').value);
+    }
+
+    function renderAuditTrail(filter) {
+        const body = document.getElementById('audit-body');
+        const q = (filter || '').trim().toLowerCase();
+        const logs = JSON.parse(localStorage.getItem(AUDIT_KEY) || '[]');
+        const visible = logs.filter(log => {
+            const text = (log.when + ' ' + log.user + ' ' + log.role + ' ' + log.archive + ' ' + log.action + ' ' + (log.card || '')).toLowerCase();
+            return text.includes(q);
+        });
+
+        body.innerHTML = '';
+        if (visible.length === 0) {
+            body.innerHTML = '<tr><td colspan="3">Nessun evento nel registro.</td></tr>';
+            return;
+        }
+
+        visible.forEach(log => {
+            const tr = document.createElement('tr');
+            const when = new Date(log.when).toLocaleString('it-IT');
+            tr.innerHTML = '<td>' + when + '</td><td>' + log.user + ' (' + log.role + ')</td><td>' + log.action + ' - Scheda: ' + (log.card || '-') + '</td>';
+            body.appendChild(tr);
+        });
+    }
+
+    function collectEditedBaseFields() {
+        const card = currentCard();
+        if (!card || !isEditor()) { return; }
+        document.querySelectorAll('.val[data-field]').forEach(el => {
+            const key = el.dataset.field;
+            const input = el.querySelector('input');
+            card[key] = input ? input.value.trim() : el.innerText.trim();
+        });
+        saveCards();
+    }
+
     function handleSave() {
+        if (!state.session) {
+            alert('Sessione non valida. Effettua di nuovo il login.');
+            window.location.href = 'index.html';
+            return;
+        }
+        if (state.session.role === 'studioso') {
+            alert('Permesso negato: profilo studioso in sola lettura.');
+            return;
+        }
+
+        collectEditedBaseFields();
+
         const btn = document.getElementById('save-btn');
         btn.innerText = "INVIO IN CORSO...";
         btn.style.opacity = "0.7";
         setTimeout(() => {
-            alert("Sistema: Scheda ICCD inviata correttamente al database centrale.");
-            btn.innerText = "CONFERMA INSERIMENTO";
+            const msg = state.session.role === 'archivista'
+                ? "Sistema: Nuova scheda ICCD registrata correttamente."
+                : "Sistema: Modifiche di bozza salvate correttamente.";
+            alert(msg);
+            addAudit('Salvataggio scheda completato');
+            btn.innerText = state.session.role === 'archivista' ? "CONFERMA INSERIMENTO" : "SALVA MODIFICHE BOZZA";
             btn.style.opacity = "1";
         }, 1500);
     }

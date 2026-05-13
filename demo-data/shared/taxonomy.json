@@ -1,0 +1,5 @@
+{
+  "documentTypes": ["foto", "tecnica", "report", "analisi"],
+  "hotspotCategories": ["degrado", "analisi", "intervento", "iscrizione"],
+  "status": ["draft", "review", "validated", "published"]
+}

@@ -1,0 +1,31 @@
+{
+  "id": "busto-di-roza-loewenfeld",
+  "tsk": "OA",
+  "nct": "00445891",
+  "oggetto": "Busto in Marmo",
+  "denominazione": "Busto di Roza Loewenfeld",
+  "autore": "Maestranza locale",
+  "cronologia": "XVIII Secolo",
+  "materia": "Calcare",
+  "misure": "62x38x8 cm",
+  "statoConservazione": "Buono",
+  "ubicazione": "Deposito 1 - Cassetto 09",
+  "valore": "EUR 8.600,00",
+  "status": "review",
+  "geo": {
+    "lat": 40.7506,
+    "lng": 14.4888,
+    "label": "Pompei, Area Sacra - scavo 1981"
+  },
+  "assets": {
+    "model": "demo-data/objects/busto-di-roza-loewenfeld/model/sculpture_bust_of_roza_loewenfeld.glb",
+    "images": [
+      "images/front.jpg",
+      "images/detail.jpg"
+    ],
+    "docs": [
+      "docs/scheda.pdf",
+      "docs/analisi-pigmenti.pdf"
+    ]
+  }
+}

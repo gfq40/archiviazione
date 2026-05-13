@@ -1,0 +1,32 @@
+{
+  "id": "macina-di-ercolano",
+  "tsk": "OA",
+  "nct": "00123456",
+  "oggetto": "Macinello / Utensile di Cucina",
+  "denominazione": "Macina di Ercolano",
+  "autore": "Ignoto (Bottega Locale)",
+  "cronologia": "XIX Secolo (1840-1860)",
+  "materia": "Pietra Lavica",
+  "misure": "85x42x30 cm",
+  "statoConservazione": "Discreto",
+  "ubicazione": "Deposito 2 - Scaffale B-14",
+  "valore": "EUR 18.500,00",
+  "status": "validated",
+  "geo": {
+    "lat": 37.2912,
+    "lng": 13.5868,
+    "label": "Agrigento, Valle dei Templi - scavo 1994"
+  },
+  "assets": {
+    "model": "demo-data/objects/macina-di-ercolano/model/meta_con_scritta.glb",
+    "images": [
+      "images/front.jpg",
+      "images/side.jpg",
+      "images/detail-inscription.jpg"
+    ],
+    "docs": [
+      "docs/scheda.pdf",
+      "docs/report-conservazione.pdf"
+    ]
+  }
+}
